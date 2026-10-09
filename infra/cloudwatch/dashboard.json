@@ -1,0 +1,43 @@
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "properties": {
+        "title": "Processing FPS",
+        "metrics": [["CivicLens", "fps"]],
+        "view": "timeSeries",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "type": "metric",
+      "properties": {
+        "title": "Job duration (min)",
+        "metrics": [["CivicLens", "job_duration_min"]],
+        "view": "bar",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "type": "metric",
+      "properties": {
+        "title": "Ticket counts by status",
+        "metrics": [
+          ["CivicLens", "tickets_filed"],
+          ["CivicLens", "tickets_pending"]
+        ],
+        "view": "stackedArea",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "type": "metric",
+      "properties": {
+        "title": "Dedup ratio",
+        "metrics": [["CivicLens", "dedup_ratio"]],
+        "view": "singleValue",
+        "region": "us-east-1"
+      }
+    }
+  ]
+}
