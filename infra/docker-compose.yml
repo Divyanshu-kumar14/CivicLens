@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # Local DynamoDB for development
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: cl-dynamodb
+    ports:
+      - "8100:8000"
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb"]
+
+  # LocalStack for S3 + SQS
+  localstack:
+    image: localstack/localstack:latest
+    container_name: cl-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,sqs
+      - DEFAULT_REGION=us-east-1
+    volumes:
+      - "./infra/scripts/init-localstack.sh:/etc/localstack/init/ready.d/init.sh"
+
+  # Vision batch worker
+  vision-worker:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.vision
+    container_name: cl-vision
+    environment:
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - DYNAMO_ENDPOINT_URL=http://dynamodb-local:8000
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=us-east-1
+    depends_on:
+      - dynamodb-local
+      - localstack
+    volumes:
+      - ./data:/app/data
+
+  # Agent API
+  agent-api:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.agent
+    container_name: cl-agent
+    ports:
+      - "8000:8000"
+    environment:
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - DYNAMO_ENDPOINT_URL=http://dynamodb-local:8000
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_REGION=us-east-1
+    depends_on:
+      - dynamodb-local
+      - localstack
+
+  # Web frontend
+  web:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.web
+    container_name: cl-web
+    ports:
+      - "3000:80"
+    depends_on:
+      - agent-api
