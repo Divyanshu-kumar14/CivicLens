@@ -21,8 +21,8 @@ def main() -> None:
     args = ap.parse_args()
     os.makedirs(args.outdir, exist_ok=True)
     r = subprocess.run(
-        ["ffmpeg", "-y", "-i", args.video, "-vf", f"select='not(mod(n\\,{args.every}))'",
-         "-vsync", "0", os.path.join(args.outdir, "frame_%05d.jpg")],
+        ["ffmpeg", "-y", "-i", args.video, "-vf", f"select='not(mod(n,{args.every}))'",
+         "-fps_mode", "passthrough", os.path.join(args.outdir, "frame_%05d.jpg")],
         capture_output=True, text=True,
     )
     if r.returncode != 0:
