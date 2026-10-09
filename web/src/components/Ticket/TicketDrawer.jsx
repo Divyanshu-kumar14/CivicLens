@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import FrameStrip from './FrameStrip.jsx';
 import SeverityBar from './SeverityBar.jsx';
 import TraceTimeline from './TraceTimeline.jsx';
 
@@ -29,6 +30,7 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
       ) : (
         <img className="hero" alt="no crop yet" />
       )}
+      <FrameStrip ticket={ticket} />
       <SeverityBar severity={editSev ?? ticket.severity} />
       <div className="cl-signals">
         {Object.entries({
