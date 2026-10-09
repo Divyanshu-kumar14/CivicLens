@@ -13,6 +13,9 @@ COPY vision/ ./vision/
 COPY config.yaml ./config.yaml
 COPY scripts/ ./scripts/
 
+# Haar cascades: pip wheels ship an empty cv2 data dir — fetch into vision/models/
+RUN python scripts/fetch_cascades.py
+
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "-m", "vision.pipeline"]
