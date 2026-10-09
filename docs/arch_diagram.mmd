@@ -1,0 +1,10 @@
+flowchart LR
+  V[(S3 raw: mp4+gps)] --> Q[SQS jobs]
+  Q --> W[Batch worker: Graviton + COOL\nG-API decode→detect→blur→embed]
+  W --> D[(Dynamo detections)]
+  W --> C[(S3 crops)]
+  D --> A[Agent: cluster→score→file/queue]
+  A --> T[(Dynamo tickets+traces)]
+  T --> UI[React map+queue]
+  UI -->|CSV/webhook| CITY[City work-order]
+  UI -->|override| A
