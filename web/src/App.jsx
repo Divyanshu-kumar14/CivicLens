@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   exportCSV,
   fetchJob,
@@ -8,11 +8,13 @@ import {
   uploadJob,
 } from './api/client.js';
 import MapView from './components/Map/MapView.jsx';
-import ReviewQueue from './components/Queue/ReviewQueue.jsx';
 import StatsRail from './components/Stats/StatsRail.jsx';
-import TicketDrawer from './components/Ticket/TicketDrawer.jsx';
-import JobProgress from './components/Upload/JobProgress.jsx';
-import UploadZone from './components/Upload/UploadZone.jsx';
+
+// Below-fold views load on demand — Map + rail stay in the initial chunk.
+const ReviewQueue = lazy(() => import('./components/Queue/ReviewQueue.jsx'));
+const TicketDrawer = lazy(() => import('./components/Ticket/TicketDrawer.jsx'));
+const JobProgress = lazy(() => import('./components/Upload/JobProgress.jsx'));
+const UploadZone = lazy(() => import('./components/Upload/UploadZone.jsx'));
 
 // Phase-1 mock fallback: shown when the API is unreachable (Task 1.5.6).
 // Phase 2 (Task 2.3.4): live data replaces these as soon as GET /tickets answers.
@@ -150,6 +152,7 @@ export default function App() {
       </header>
       <div className="cl-shell">
         <StatsRail stats={stats} />
+        <Suspense fallback={<div style={{ flex: 1, padding: 20 }}>Loading…</div>}>
         {view === 'map' && (
           <MapView
             tickets={tickets}
@@ -196,6 +199,7 @@ export default function App() {
             onOverride={(id, to) => applyOverride(id, to)}
           />
         )}
+        </Suspense>
       </div>
       <div className="cl-uploadbar">
         {job ? `Job ${job.job_id?.slice(0, 8)} — ${job.status}` : 'No active job — Upload tab to process a route'}
