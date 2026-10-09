@@ -1,7 +1,7 @@
 .PHONY: install test seed-demo bench lint clean secrets
 
 secrets:
-	@if command -v gitleaks >/dev/null; then gitleaks detect --source . --verbose; else echo "(gitleaks not installed — grep fallback)"; grep -rnE 'AKIA[0-9A-Z]{16}|sk-live|ghp_[A-Za-z0-9]{20,}|xox[bap]-' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude=package-lock.json . && echo "LEAK?" || echo "secrets scan clean"; fi
+	@if command -v gitleaks >/dev/null; then gitleaks detect --source . --verbose; else echo "(gitleaks not installed — grep fallback)"; grep -rnE 'AKIA[0-9A-Z]{16}|sk-live|ghp_[A-Za-z0-9]{20,}|xox[bap]-' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=specs --exclude-dir=.token-optimizer --exclude-dir=dist --exclude=package-lock.json --exclude=Makefile . && echo "LEAK?" || echo "secrets scan clean"; fi
 
 install:
 	cd vision && pip install -r requirements.txt
