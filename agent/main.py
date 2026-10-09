@@ -7,6 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agent.routes import export, health, jobs, tickets
 
+import os
+
+# Task 3.1.3: origin allowlist is deploy-configurable, localhost by default.
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
+
 app = FastAPI(
     title="CivicLens API",
     version="1.0.0",
@@ -15,7 +20,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # CORS allowlist
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

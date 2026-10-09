@@ -36,6 +36,9 @@ class FakeDB:
 
 
 def _client():
+    from agent.services.cache import get_cache
+
+    get_cache().clear()  # list cache must not leak between tests
     fake = FakeDB()
     app.dependency_overrides[jobs_mod.get_db] = lambda: fake
     jobs_mod.send_job_message = lambda job: None
@@ -109,3 +112,26 @@ def test_multipart_upload_queues_job():
     stored = fake.jobs[body["job_id"]]
     assert stored["video_url"].startswith("s3://raw/")
     assert stored["gps_url"].startswith("s3://raw/")
+
+
+def test_upload_rejects_bad_filename():
+    c, _ = _client()
+
+    class FakeS3:
+        def upload_video(self, path, job_id):
+            raise AssertionError("must reject before S3")
+
+    app.dependency_overrides[jobs_mod.get_s3] = lambda: FakeS3()
+    try:
+        r = c.post("/jobs/upload", files={"video": ("evil.exe", b"x", "application/x-msdownload")})
+    finally:
+        del app.dependency_overrides[jobs_mod.get_s3]
+    assert r.status_code == 422, r.status_code
+
+
+def test_ticket_list_is_cached():
+    from agent.services.cache import get_cache
+
+    c, _ = _client()
+    c.get("/tickets")
+    assert get_cache().get(("tickets", None, "severity")) is not None

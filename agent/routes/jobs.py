@@ -85,6 +85,21 @@ def create_job(payload: JobCreate, db: DynamoClient = Depends(get_db)) -> dict:
     return _enqueue(db, payload.video_url, payload.gps_url, payload.ward)
 
 
+VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv"}
+GPS_EXTS = {".csv", ".srt"}
+
+
+def _safe_upload_name(upload: UploadFile, allowed: set[str], field: str) -> str:
+    """Task 3.1.3: strip paths, allowlist extensions, reject the rest (413/422)."""
+    name = (upload.filename or "").split("/")[-1].split("\\")[-1].strip()
+    ext = "." + name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if not name or ext not in allowed:
+        raise HTTPException(status_code=422, detail=f"{field}: need one of {sorted(allowed)}")
+    if not all(c.isalnum() or c in "._-" for c in name):
+        raise HTTPException(status_code=422, detail=f"{field}: unsafe filename")
+    return name
+
+
 @router.post("/upload", status_code=201)
 def upload_job(
     video: UploadFile = File(...),
@@ -97,6 +112,9 @@ def upload_job(
     import shutil
     import tempfile
 
+    _safe_upload_name(video, VIDEO_EXTS, "video")
+    if gps is not None and gps.filename:
+        _safe_upload_name(gps, GPS_EXTS, "gps")
     job_id = uuid.uuid4().hex
     with tempfile.TemporaryDirectory(prefix=f"cl-upload-{job_id}-") as tmp:
         video_local = f"{tmp}/video.mp4"
