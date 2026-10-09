@@ -22,6 +22,9 @@ FUSE_BOOST = 0.1
 CLASSICAL_ONLY_MIN_AREA = 1000
 CLASSICAL_ONLY_CONF = 0.45
 CLASSICAL_FALLBACK_CONF = 0.4
+# Borderline YOLO band re-checked with a focused classical ROI (Task 2.1.4).
+BORDERLINE_BAND = 0.15
+ROI_EXPAND = 1.5
 
 
 @dataclass
@@ -132,6 +135,35 @@ class PotholeDetector:
             )
             for b in canny_contours(img)
         ]
+
+    def detect_with_fusion(self, frame: Frame) -> list[Detection]:
+        """YOLO + classical fusion (Task 2.1.4).
+
+        1. Full-frame classical pass fused with YOLO (boost +0.1 on overlap,
+           large classical-only regions added at 0.45).
+        2. Borderline YOLO dets (conf_threshold..+0.15) with no full-frame
+           confirmation get a focused ROI classical re-check.
+        3. Final re-NMS.
+        """
+        yolo = self.detect(frame)
+        classical = self.detect_classical(frame)
+        confirmed = {id(d) for d in yolo if any(iou(d, c) > FUSE_IOU for c in classical)}
+        fused = self.fuse(yolo, classical, self.conf_threshold)
+        h, w = frame.image.shape[:2]
+        for det in yolo:
+            if id(det) in confirmed:
+                continue
+            if not (self.conf_threshold <= det.conf < self.conf_threshold + BORDERLINE_BAND):
+                continue
+            cx, cy = det.x + det.w / 2.0, det.y + det.h / 2.0
+            rw, rh = det.w * ROI_EXPAND, det.h * ROI_EXPAND
+            roi = (max(0, int(cx - rw / 2)), max(0, int(cy - rh / 2)),
+                   min(w, int(rw)), min(h, int(rh)))
+            for cand in self.detect_classical(frame, roi=roi):
+                if iou(det, cand) > FUSE_IOU:
+                    det.conf = min(1.0, det.conf + FUSE_BOOST)
+                    break
+        return nms(fused, self.nms_iou)
 
     @staticmethod
     def fuse(
