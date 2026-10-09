@@ -46,3 +46,49 @@ def test_cache_hit_expiry_and_clear():
     c.clear()
     assert c.get("k") is None
     assert isinstance(get_cache(), TTLCache)
+
+
+def test_query_tickets_projection_passed_through():
+    import sys
+    import types
+
+    boto3_stub = types.ModuleType("boto3")
+    dynamodb_stub = types.ModuleType("boto3.dynamodb")
+    conditions_stub = types.ModuleType("boto3.dynamodb.conditions")
+
+    class Key:
+        def __init__(self, name):
+            self.name = name
+
+        def eq(self, value):
+            return (self.name, value)
+
+    conditions_stub.Key = Key
+    dynamodb_stub.conditions = conditions_stub
+    boto3_stub.dynamodb = dynamodb_stub
+    sys.modules["boto3"] = boto3_stub
+    sys.modules["boto3.dynamodb"] = dynamodb_stub
+    sys.modules["boto3.dynamodb.conditions"] = conditions_stub
+    try:
+        seen = {}
+
+        class FakeTable:
+            def query(self, **kw):
+                seen.update(kw)
+                return {"Items": []}
+
+            def scan(self, **kw):
+                seen.update(kw)
+                return {"Items": []}
+
+        from agent.db.dynamo import DynamoClient
+
+        client = DynamoClient.__new__(DynamoClient)  # no real boto3 needed
+        client._dynamo = types.SimpleNamespace(Table=lambda name: FakeTable())
+        client.t_tickets = "t"
+        client.query_tickets(status="filed", projection="ticket_id,severity")
+    finally:
+        for mod in ("boto3", "boto3.dynamodb", "boto3.dynamodb.conditions"):
+            sys.modules.pop(mod, None)
+    assert seen.get("ProjectionExpression") == "ticket_id,severity"
+    assert seen.get("IndexName") == "status-severity-index"
