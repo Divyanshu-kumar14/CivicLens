@@ -92,3 +92,16 @@ def test_query_tickets_projection_passed_through():
             sys.modules.pop(mod, None)
     assert seen.get("ProjectionExpression") == "ticket_id,severity"
     assert seen.get("IndexName") == "status-severity-index"
+
+
+def test_to_dynamo_converts_floats():
+    from decimal import Decimal
+
+    from agent.db.dynamo import to_dynamo
+
+    out = to_dynamo({"sev": 82.0, "centroid": [12.9, 77.5],
+                     "trace": [{"conf": 0.5}], "n": 3, "s": "x"})
+    assert out["sev"] == Decimal("82.0")
+    assert out["centroid"] == [Decimal("12.9"), Decimal("77.5")]
+    assert out["trace"][0]["conf"] == Decimal("0.5")
+    assert out["n"] == 3 and out["s"] == "x"

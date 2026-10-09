@@ -12,6 +12,19 @@ import time
 DETECTION_TTL_DAYS = 90
 
 
+def to_dynamo(value):
+    """Recursively convert floats to Decimal (boto3 refuses raw floats)."""
+    from decimal import Decimal
+
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        return {k: to_dynamo(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [to_dynamo(v) for v in value]
+    return value
+
+
 def _require_boto3():  # pragma: no cover - needs boto3 installed
     try:
         import boto3
@@ -49,7 +62,7 @@ class DynamoClient:
     # --- Jobs ---
     def create_job(self, job: dict) -> str:
         """Put item in cl-jobs. Return job_id."""
-        self._table(self.t_jobs).put_item(Item=job)
+        self._table(self.t_jobs).put_item(Item=to_dynamo(job))
         return job["job_id"]
 
     def update_job_status(self, job_id: str, status: str, counts: dict | None = None):
@@ -76,7 +89,7 @@ class DynamoClient:
         ttl = int(time.time()) + DETECTION_TTL_DAYS * 86400
         with self._table(self.t_detections).batch_writer() as batch:
             for det in detections:
-                batch.put_item(Item={**det, "ttl": ttl})
+                batch.put_item(Item=to_dynamo({**det, "ttl": ttl}))
 
     def get_detections_by_job(self, job_id: str) -> list[dict]:
         """Query GSI job-index."""
@@ -90,10 +103,11 @@ class DynamoClient:
     # --- Tickets ---
     def put_ticket(self, ticket: dict):
         """Put item in cl-tickets."""
-        self._table(self.t_tickets).put_item(Item=ticket)
+        self._table(self.t_tickets).put_item(Item=to_dynamo(ticket))
 
     def update_ticket(self, ticket_id: str, updates: dict):
         """Update specific fields (status, severity, trace append)."""
+        updates = to_dynamo(updates)
         expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates)
         self._table(self.t_tickets).update_item(
             Key={"ticket_id": ticket_id},
