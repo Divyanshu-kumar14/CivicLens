@@ -34,6 +34,7 @@ vite.config.js.timestamp-*
 vision/models/*.pt
 vision/models/*.onnx
 vision/models/*.bin
+vision/models/*.xml
 !vision/models/.gitkeep
 
 # AWS / localstack
