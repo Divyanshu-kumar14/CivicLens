@@ -47,6 +47,10 @@ data/
 *.swo
 .DS_Store
 
+# Local-only agent/optimizer state (never commit)
+.orchestrator/
+.token-optimizer/
+
 # Benchmark results (large, regenerate via make bench)
 eval/bench/results/*.json
 !eval/bench/results/.gitkeep
