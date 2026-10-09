@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY vision/requirements.txt ./requirements.txt
+# CPU-only torch first: PyPI CUDA wheels are GBs of dead weight on CPU workers
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY vision/ ./vision/
@@ -15,6 +17,9 @@ COPY scripts/ ./scripts/
 
 # Haar cascades: pip wheels ship an empty cv2 data dir — fetch into vision/models/
 RUN python scripts/fetch_cascades.py
+
+# Build-time import smoke (catches opencv/torch skew before deploy)
+RUN python -c "import cv2, ultralytics, torch; print('vision deps ok:', cv2.__version__, torch.__version__)"
 
 ENV PYTHONUNBUFFERED=1
 
