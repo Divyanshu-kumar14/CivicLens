@@ -1,0 +1,43 @@
+# config.yaml — root-level shared config
+ward: "ward-12-demo"
+
+dedup:
+  geo_eps_m: 15
+  cos_thresh: 0.82
+  min_samples: 2
+
+severity:
+  w_area: 0.50
+  w_repeat: 0.25
+  w_route: 0.15
+  w_lane: 0.10
+  auto_file_threshold: 70
+  review_threshold: 40
+
+privacy:
+  blur_faces: true
+  blur_plates: true
+  raw_retain_days: 14
+
+bench:
+  route: "s3://civic-lens-demo/routeA-10min.mp4"
+  runs: 3
+  instances:
+    - c7g.medium
+    - c6i.large
+
+detection:
+  model: "yolov8n"
+  conf_threshold: 0.25
+  nms_iou: 0.5
+  min_box_px: 24
+  classes:
+    - pothole
+    - crack
+  disabled_classes:
+    - bin_overflow
+    - streetlight_off
+
+embedding:
+  dim: 128
+  method: "orb"  # or "clip-tiny"

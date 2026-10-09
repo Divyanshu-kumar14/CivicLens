@@ -1,0 +1,52 @@
+specs/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+*.egg
+pip-wheel-metadata/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+build/
+*.local
+vite.config.js.timestamp-*
+
+# Env / secrets (never commit)
+.env
+.env.*
+!.env.example
+
+# Media + models (large binaries)
+*.mp4
+*.avi
+*.mov
+*.mkv
+vision/models/*.pt
+vision/models/*.onnx
+vision/models/*.bin
+!vision/models/.gitkeep
+
+# AWS / localstack
+.docker/
+data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Benchmark results (large, regenerate via make bench)
+eval/bench/results/*.json
+!eval/bench/results/.gitkeep
