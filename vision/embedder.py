@@ -11,6 +11,9 @@ import cv2
 import numpy as np
 
 EMB_DIM = 128
+# ORB input cap: cost scales with pixels, quality identical (see docs/PERF.md).
+# 64px destroys keypoints (zero vectors) — do not lower without re-measuring.
+ORB_MAX_DIM = 128
 
 
 class DetectionEmbedder:
@@ -29,8 +32,14 @@ class DetectionEmbedder:
         """Mean-aggregated ORB descriptors, unit-norm, padded/truncated to dim.
 
         No keypoints (blank crop) -> zero vector (callers: cosine vs zero = 0).
+        Inputs larger than ORB_MAX_DIM are downscaled first: ORB cost scales
+        with pixels while dedup quality is unchanged (see docs/PERF.md).
         """
         gray = crop if crop.ndim == 2 else cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        h, w = gray.shape[:2]
+        scale = min(1.0, ORB_MAX_DIM / max(h, w))
+        if scale < 1.0:
+            gray = cv2.resize(gray, (max(1, int(w * scale)), max(1, int(h * scale))))
         _, desc = self._orb.detectAndCompute(gray, None)
         vec = np.zeros(self.dim, dtype=np.float32)
         if desc is None or len(desc) == 0:
