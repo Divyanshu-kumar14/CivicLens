@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { labelFor } from '../../utils/severity.js';
 
 function barColor(severity) {
@@ -6,16 +7,28 @@ function barColor(severity) {
   return '#2E7D32';
 }
 
-export default function SeverityBar({ severity }) {
+// Horizontal 0-100 bar: numeric value + label, animated fill, threshold
+// markers at 40 (review) and 70 (auto-file). `compact` fits table rows.
+export default function SeverityBar({ severity = 0, compact = false }) {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const t = requestAnimationFrame(() =>
+      setWidth(Math.min(100, Math.max(0, severity))),
+    );
+    return () => cancelAnimationFrame(t);
+  }, [severity]);
+
   return (
     <div>
-      <div>
-        <b>{severity}</b> — {labelFor(severity)}
-      </div>
-      <div className="sevbar">
+      {!compact && (
+        <div>
+          <b>{severity}</b> — {labelFor(severity)}
+        </div>
+      )}
+      <div className="sevbar" title={`${severity} (${labelFor(severity)})`}>
         <div
           className="fill"
-          style={{ width: `${Math.min(100, Math.max(0, severity))}%`, background: barColor(severity) }}
+          style={{ width: `${width}%`, background: barColor(severity), transition: 'width 0.6s ease' }}
         />
         <div className="mark" style={{ left: '40%' }} title="review threshold" />
         <div className="mark" style={{ left: '70%' }} title="auto-file threshold" />
