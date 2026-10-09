@@ -1,0 +1,71 @@
+/* CivicLens Phase-1 shell styles — no framework, plain CSS. */
+:root {
+  --red: #e53935;
+  --amber: #ff8f00;
+  --grey: #9e9e9e;
+  --green: #2e7d32;
+  --ink: #1a1a1a;
+  --panel: #ffffff;
+  --rail: #f5f5f5;
+  --line: #e0e0e0;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); }
+
+.cl-header {
+  height: 48px; display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; background: var(--ink); color: #fff;
+}
+.cl-header .logo { font-weight: 800; letter-spacing: 0.5px; }
+.cl-header .ward { font-size: 13px; opacity: 0.75; }
+
+.cl-shell { display: flex; height: calc(100% - 48px); }
+.cl-rail {
+  width: 220px; flex-shrink: 0; background: var(--rail);
+  border-right: 1px solid var(--line); padding: 12px; overflow-y: auto;
+}
+.cl-stat { margin-bottom: 14px; }
+.cl-stat .label { font-size: 11px; text-transform: uppercase; color: #666; }
+.cl-stat .value { font-size: 24px; font-weight: 700; }
+.cl-dedup {
+  display: inline-block; margin-top: 8px; padding: 4px 10px;
+  background: var(--ink); color: #fff; border-radius: 12px; font-size: 13px;
+}
+
+.cl-mapwrap { position: relative; flex: 1; }
+.cl-mapwrap .leaflet-container { height: 100%; width: 100%; }
+.cl-rawtoggle {
+  position: absolute; top: 12px; right: 12px; z-index: 500;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 10px; font-size: 13px; cursor: pointer;
+}
+
+.cl-drawer {
+  width: 340px; flex-shrink: 0; background: var(--panel);
+  border-left: 1px solid var(--line); overflow-y: auto; padding: 12px;
+}
+.cl-drawer img.hero { width: 100%; border-radius: 6px; background: #ddd; }
+.cl-signals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+.cl-signals .sig { background: var(--rail); border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+.cl-signals .sig b { display: block; font-size: 14px; }
+.cl-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.cl-actions button { padding: 8px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.btn-file { background: var(--green); color: #fff; border: none; }
+.btn-dismiss { background: #fff; color: var(--red); border: 1px solid var(--red); }
+.btn-ghost { background: #fff; border: 1px solid var(--line); }
+
+.sevbar { height: 10px; border-radius: 5px; background: #eee; position: relative; margin: 6px 0; }
+.sevbar .fill { height: 100%; border-radius: 5px; }
+.sevbar .mark { position: absolute; top: -3px; width: 2px; height: 16px; background: var(--ink); }
+
+.cl-trace { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }
+.cl-trace .entry { display: flex; gap: 8px; font-size: 12px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.cl-trace .actor { font-size: 14px; }
+
+.cl-uploadbar {
+  height: 36px; display: flex; align-items: center; padding: 0 16px;
+  border-top: 1px solid var(--line); background: var(--rail);
+  font-size: 13px; color: #666;
+}
