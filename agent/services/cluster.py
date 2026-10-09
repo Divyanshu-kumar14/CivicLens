@@ -60,6 +60,30 @@ class DeduplicatorService:
             return self.geo_eps_m * (2.0 - sim)
         return 0.0  # same hole
 
+    def _distance_matrix(self, detections: list[dict]):
+        """Vectorized equivalent of the _pair_cost loop (2.6x at n=400,
+        far better asymptotically; see docs/PERF.md)."""
+        import numpy as np
+
+        lat = np.array([d["lat"] for d in detections])
+        lon = np.array([d["lon"] for d in detections])
+        embs = [np.asarray(d.get("embedding"), dtype=float).ravel()
+                if d.get("embedding") is not None else None for d in detections]
+        dim = max((e.shape[0] for e in embs if e is not None), default=0)
+        E = np.array([e if e is not None else np.zeros(dim) for e in embs])
+        norms = np.linalg.norm(E, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        sim = (E / norms) @ (E / norms).T
+
+        p1, p2 = np.radians(lat)[:, None], np.radians(lat)[None, :]
+        dp = p2 - p1
+        dl = np.radians(lon)[None, :] - np.radians(lon)[:, None]
+        a = np.sin(dp / 2) ** 2 + np.cos(p1) * np.cos(p2) * np.sin(dl / 2) ** 2
+        geo = 2 * 6_371_000.0 * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))
+        return np.where(geo > self.geo_eps_m, geo,
+                        np.where(sim < self.cos_thresh,
+                                 self.geo_eps_m * (2.0 - sim), 0.0))
+
     def cluster_detections(self, detections: list[dict]) -> list[Cluster]:
         """DBSCAN over the combined metric. Noise with conf > 0.5 survives solo."""
         from sklearn.cluster import DBSCAN
@@ -77,11 +101,7 @@ class DeduplicatorService:
                 return []  # lone weak hit dismissed
             return [self._singleton(only)]
 
-        n = len(detections)
-        dist = np.zeros((n, n))
-        for i in range(n):
-            for j in range(i + 1, n):
-                dist[i, j] = dist[j, i] = self._pair_cost(detections[i], detections[j])
+        dist = self._distance_matrix(detections)
         labels = DBSCAN(eps=self.geo_eps_m, min_samples=self.min_samples,
                         metric="precomputed").fit_predict(dist)
 
