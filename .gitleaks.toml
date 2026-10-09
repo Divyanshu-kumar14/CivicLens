@@ -1,0 +1,16 @@
+# Gitleaks config — fail CI on committed secrets
+title = "CivicLens gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+description = "CivicLens webhook secret placeholder leak"
+id = "civiclens-webhook-secret"
+regex = '''(?i)webhook[_-]?secret\s*=\s*["'](?!changeme)[^"']{4,}["']'''
+tags = ["webhook", "secret"]
+
+[allowlist]
+description = "Allow example/placeholder secrets"
+paths = ['''\\.env\\.example$''', '''\\.gitleaks\\.toml$''']
+regexes = ['''changeme''', '''123456789012''']
