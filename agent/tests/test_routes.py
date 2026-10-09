@@ -82,3 +82,30 @@ def test_export_csv_and_webhook_shape():
     assert "t2" in r.text
     r = c.post("/webhooks/test", json={"url": "http://127.0.0.1:9/nope"})
     assert r.json()["ok"] is False
+
+
+def test_multipart_upload_queues_job():
+    c, fake = _client()
+
+    class FakeS3:
+        def upload_video(self, path, job_id):
+            return f"s3://raw/{job_id}/video.mp4"
+
+        def upload_gps(self, path, job_id):
+            return f"s3://raw/{job_id}/gps.csv"
+
+    app.dependency_overrides[jobs_mod.get_s3] = lambda: FakeS3()
+    try:
+        r = c.post(
+            "/jobs/upload",
+            files={"video": ("route.mp4", b"fake-video", "video/mp4"),
+                   "gps": ("track.csv", b"t,lat,lon\n0,1,2\n", "text/csv")},
+        )
+    finally:
+        del app.dependency_overrides[jobs_mod.get_s3]
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["status"] == "queued"
+    stored = fake.jobs[body["job_id"]]
+    assert stored["video_url"].startswith("s3://raw/")
+    assert stored["gps_url"].startswith("s3://raw/")

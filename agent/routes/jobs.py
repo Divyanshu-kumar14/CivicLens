@@ -12,9 +12,10 @@ import time
 import uuid
 from urllib.request import Request, urlopen
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from agent.db.dynamo import DynamoClient
+from agent.db.s3 import S3Client
 from agent.models.job import JobCreate
 
 router = APIRouter()
@@ -35,6 +36,16 @@ def get_db() -> DynamoClient:
     if _db is None:
         _db = DynamoClient()
     return _db
+
+
+_s3: S3Client | None = None
+
+
+def get_s3() -> S3Client:
+    global _s3
+    if _s3 is None:
+        _s3 = S3Client()
+    return _s3
 
 
 def remote_size_ok(url: str) -> bool:
@@ -71,11 +82,45 @@ def send_job_message(job: dict) -> None:
 def create_job(payload: JobCreate, db: DynamoClient = Depends(get_db)) -> dict:
     if not remote_size_ok(payload.video_url):
         raise HTTPException(status_code=413, detail="Video exceeds 2GB limit")
+    return _enqueue(db, payload.video_url, payload.gps_url, payload.ward)
+
+
+@router.post("/upload", status_code=201)
+def upload_job(
+    video: UploadFile = File(...),
+    gps: UploadFile | None = File(default=None),
+    ward: str = Form(default="ward-12-demo"),
+    db: DynamoClient = Depends(get_db),
+    s3: S3Client = Depends(get_s3),
+) -> dict:
+    """Multipart intake for the web UploadZone: files -> S3 raw -> queued job."""
+    import shutil
+    import tempfile
+
+    job_id = uuid.uuid4().hex
+    with tempfile.TemporaryDirectory(prefix=f"cl-upload-{job_id}-") as tmp:
+        video_local = f"{tmp}/video.mp4"
+        with open(video_local, "wb") as fh:
+            shutil.copyfileobj(video.file, fh)
+        if os.path.getsize(video_local) > MAX_VIDEO_BYTES:
+            raise HTTPException(status_code=413, detail="Video exceeds 2GB limit")
+        video_url = s3.upload_video(video_local, job_id)
+        gps_url = ""
+        if gps is not None:
+            gps_local = f"{tmp}/gps.csv"
+            with open(gps_local, "wb") as fh:
+                shutil.copyfileobj(gps.file, fh)
+            gps_url = s3.upload_gps(gps_local, job_id)
+    return _enqueue(db, video_url, gps_url, ward, job_id=job_id)
+
+
+def _enqueue(db: DynamoClient, video_url: str, gps_url: str, ward: str,
+             job_id: str | None = None) -> dict:
     job = {
-        "job_id": uuid.uuid4().hex,
-        "video_url": payload.video_url,
-        "gps_url": payload.gps_url,
-        "ward": payload.ward,
+        "job_id": job_id or uuid.uuid4().hex,
+        "video_url": video_url,
+        "gps_url": gps_url,
+        "ward": ward,
         "status": "queued",
         "progress_pct": 0.0,
         "counts": {},
