@@ -23,7 +23,13 @@ def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def main() -> None:
+def main(api_url: str | None = None) -> None:
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--api-url", default=None,
+                    help="verify afterwards via GET {url}/tickets (e.g. http://localhost:8001)")
+    args = ap.parse_args() if api_url is None else argparse.Namespace(api_url=api_url)
     from agent.db.dynamo import DynamoClient
 
     db = DynamoClient()
@@ -46,6 +52,14 @@ def main() -> None:
             "created_at": _now(), "updated_at": _now(),
         })
     print(f"seeded job {job_id} + {len(DEMO_TICKETS)} tickets")
+    if args.api_url:
+        import json
+        import urllib.request
+
+        with urllib.request.urlopen(f"{args.api_url.rstrip('/')}/tickets", timeout=15) as resp:
+            tickets = json.load(resp)
+        print(f"verify: API returns {len(tickets)} tickets")
+        assert len(tickets) >= len(DEMO_TICKETS), "seed verify failed"
 
 
 if __name__ == "__main__":

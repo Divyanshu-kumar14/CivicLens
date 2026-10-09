@@ -106,18 +106,27 @@ class DynamoClient:
         """Get single ticket."""
         return self._table(self.t_tickets).get_item(Key={"ticket_id": ticket_id}).get("Item", {})
 
-    def query_tickets(self, status: str | None = None, sort_by: str = "severity") -> list[dict]:
-        """Query by status using GSI, sort by severity desc."""
+    def query_tickets(self, status: str | None = None, sort_by: str = "severity",
+                      projection: str | None = None) -> list[dict]:
+        """Query by status using GSI, sort by severity desc.
+
+        projection: optional DynamoDB ProjectionExpression to limit fields
+        (Task 3.1.4: drawer opens fetch fewer bytes).
+        """
         table = self._table(self.t_tickets)
+        kwargs: dict = {}
+        if projection:
+            kwargs["ProjectionExpression"] = projection
         if status:
             from boto3.dynamodb.conditions import Key
 
             items = table.query(
                 IndexName="status-severity-index",
                 KeyConditionExpression=Key("status").eq(status),
+                **kwargs,
             ).get("Items", [])
         else:
-            items = table.scan().get("Items", [])
+            items = table.scan(**kwargs).get("Items", [])
         if sort_by == "severity":
             items.sort(key=lambda t: t.get("severity", 0), reverse=True)
         elif sort_by == "timestamp":
