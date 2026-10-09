@@ -9,9 +9,9 @@ services:
       - "8100:8000"
     command: ["-jar", "DynamoDBLocal.jar", "-sharedDb"]
 
-  # LocalStack for S3 + SQS
+  # LocalStack for S3 + SQS (3.x = last OSS track; latest requires a token)
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:3.8.2
     container_name: cl-localstack
     ports:
       - "4566:4566"
