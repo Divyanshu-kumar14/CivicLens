@@ -42,17 +42,9 @@ const MOCK_TICKETS = [
 const SEV_PRESET = { low: 25, med: 55, high: 85 };
 const ALL_ON = new Set(['filed', 'pending', 'dismissed']);
 
-function useClock() {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return now.toISOString().slice(11, 19) + ' UTC';
-}
-
 export default function App() {
   const [tickets, setTickets] = useState(MOCK_TICKETS);
+  const [loading, setLoading] = useState(true);
   const [live, setLive] = useState(false);
   const [view, setView] = useState('map'); // map | queue | upload
   const [selectedId, setSelectedId] = useState(null);
@@ -61,15 +53,17 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState(new Set(ALL_ON));
   const [job, setJob] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const clock = useClock();
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     try {
       const data = await fetchTickets();
       setTickets(data);
       setLive(true);
     } catch {
       setLive(false);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -171,10 +165,10 @@ export default function App() {
           {live ? 'Live' : 'Demo mode'}
         </span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span className="cl-clock">{clock}</span>
-          <nav className="cl-tabs" aria-label="Views">
+          <Clock />
+          <nav className="cl-tabs" role="tablist" aria-label="Views">
             {['map', 'queue', 'upload'].map((v) => (
-              <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>
+              <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}>
                 {v[0].toUpperCase() + v.slice(1)}
               </button>
             ))}
@@ -202,6 +196,7 @@ export default function App() {
         {view === 'queue' && (
           <ReviewQueue
             tickets={tickets.filter((t) => t.status === 'pending')}
+            loading={loading}
             selectedIds={selectedIds}
             onToggleSelect={(id) => setSelectedIds((s) => {
               const n = new Set(s);

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import QueueActions from './QueueActions.jsx';
 import SeverityBar from '../Ticket/SeverityBar.jsx';
 
@@ -5,6 +6,7 @@ import SeverityBar from '../Ticket/SeverityBar.jsx';
 // A/D/1-3 keyboard shortcuts, row click opens the drawer.
 export default function ReviewQueue({
   tickets,
+  loading = false,
   selectedIds,
   onToggleSelect,
   onSelectAll,
@@ -14,7 +16,12 @@ export default function ReviewQueue({
   onExportSelected,
   onRowClick,
 }) {
-  const rows = [...tickets].sort((a, b) => (b.severity || 0) - (a.severity || 0));
+  // O(n log n) sort memoized: without this, every parent render (poll ticks,
+  // selection, clock) re-sorted the table for an identical ticket array.
+  const rows = useMemo(
+    () => [...tickets].sort((a, b) => (b.severity || 0) - (a.severity || 0)),
+    [tickets],
+  );
 
   const onKey = (e) => {
     if (e.key === 'a' || e.key === 'A') onApprove();
@@ -34,6 +41,17 @@ export default function ReviewQueue({
         onDismiss={onDismiss}
         onExportSelected={onExportSelected}
       />
+      {loading && rows.length === 0 ? (
+        <div role="status" aria-label="Loading tickets">
+          {[0, 1, 2, 3].map((i) => (
+            <div className="cl-skel-row" key={i}>
+              <div className="cl-skel" style={{ width: '18%' }} />
+              <div className="cl-skel" style={{ width: '34%' }} />
+              <div className="cl-skel" style={{ width: '22%' }} />
+            </div>
+          ))}
+        </div>
+      ) : (
       <table>
         <thead>
           <tr>
@@ -63,7 +81,8 @@ export default function ReviewQueue({
           ))}
         </tbody>
       </table>
-      {rows.length === 0 && <p className="cl-empty">Queue empty — nothing awaiting review.</p>}
+      )}
+      {rows.length === 0 && !loading && <p className="cl-empty">Queue empty — nothing awaiting review.</p>}
       <div className="cl-kbd-row">
         Shortcuts: <kbd>A</kbd> approve <kbd>D</kbd> dismiss <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> severity
       </div>

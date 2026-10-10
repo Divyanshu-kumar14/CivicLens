@@ -8,15 +8,25 @@ export const DEFAULT_CENTER = [12.9716, 77.5946];
 
 const STATUS_LABEL = { filed: 'Filed', pending: 'Review', dismissed: 'Dismissed' };
 
+// Icon cache: rebuilding L.divIcon objects on every parent render forces
+// Leaflet to tear down and re-add every marker. Keyed by visual signature so
+// icons rebuild only when something visible actually changed. Bounded at 2000
+// entries (evict oldest) so long sessions can't leak.
+const iconCache = new Map();
+const ICON_CACHE_LIMIT = 2000;
+
 function soft(color) {
   return color + '55';
 }
 
 function pinIcon(ticket, selected) {
+  const key = `${ticket.ticket_id}|${ticket.severity}|${ticket.status}|${selected}`;
+  const hit = iconCache.get(key);
+  if (hit) return hit;
   const color = colorFor(ticket);
   const size = 16 + Math.min(12, (ticket.severity || 0) / 8);
   const pulse = ticket.status === 'filed' ? '<span class="pin-pulse"></span>' : '';
-  return L.divIcon({
+  const icon = L.divIcon({
     className: 'cl-pin-wrap',
     html:
       `<span class="cl-pin${selected ? ' sel' : ''}"` +
@@ -25,6 +35,9 @@ function pinIcon(ticket, selected) {
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
+  if (iconCache.size >= ICON_CACHE_LIMIT) iconCache.delete(iconCache.keys().next().value);
+  iconCache.set(key, icon);
+  return icon;
 }
 
 export default function MapView({
@@ -68,6 +81,8 @@ export default function MapView({
             key={t.ticket_id}
             position={[t.centroid[0], t.centroid[1]]}
             icon={pinIcon(t, t.ticket_id === selectedId)}
+            keyboard
+            title={`${t.ticket_id}, severity ${t.severity}, ${STATUS_LABEL[t.status] || t.status}`}
             eventHandlers={{ click: () => onPinClick(t.ticket_id) }}
           >
             <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
