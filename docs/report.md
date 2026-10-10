@@ -33,10 +33,16 @@ Human override flows back into the agent with full trace.
   path, not the fused system; YOLO numbers need pothole-trained weights.
 
 ## 5. AWS Deployment
-TODO (needs credentials): `infra/scripts/setup-aws.sh` provisions S3 (SSE-S3,
-14-day raw lifecycle) + 3 DynamoDB tables (GSIs, 90-day detection TTL) + SQS.
-Local mirror: `docker compose up` (localstack S3+SQS :4566, dynamodb-local
-:8100). IAM: ward-scoped prefixes documented at deploy (TODO).
+Live since 2026-10-10 (ap-southeast-2): EC2 `t4g.small` (Graviton/ARM) running
+`agent-api` + `web` from `infra/docker-compose.prod.yml` (no local emulators).
+Real backends via `infra/scripts/setup-aws.sh`: S3 `civic-lens-raw` (SSE-S3,
+14-day lifecycle) + `civic-lens-crops`, DynamoDB `cl-detections` / `cl-tickets`
+(GSI `status-severity-index`) / `cl-jobs` (90-day detection TTL), SQS
+`civic-lens-jobs`. Instance role `civiclens-ec2-role` (S3/Dynamo/SQS/CW managed
+policies) — no access keys anywhere. Endpoint: `http://3.25.238.76`
+(map :80, API :8000, CORS allowlisted). Verified: seed → 5 tickets, job
+enqueue → SQS, override + CSV export over the public URL.
+TODO: ward-scoped IAM policy (replace managed full-access before pilot).
 
 ## 6. Agentic Loop
 perceive (cluster detail log) → decide (70/40 gates, arterial ≥85 forced
