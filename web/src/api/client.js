@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
+// Empty base = same origin (nginx proxies /jobs|/tickets|… to the API in
+// prod). Dev uses vite.config.js proxy. Absolute URL only for local override.
 
 export const api = axios.create({ baseURL: API_BASE, timeout: 15000 });
 
