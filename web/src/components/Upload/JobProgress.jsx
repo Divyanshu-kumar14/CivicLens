@@ -18,26 +18,19 @@ export default function JobProgress({ job, fetchJob, onUpdate, onDone }) {
 
   if (!job) return null;
   const counts = job.counts || {};
+  const pct = job.status === 'completed' ? 100 : Math.round(job.progress_pct ?? 0);
   const label =
     job.status === 'completed'
       ? `${counts.raw ?? '?'} detections → ${counts.clusters ?? '?'} tickets`
       : job.status === 'failed'
         ? 'Job failed'
-        : `${job.status}… ${(job.progress_pct ?? 0).toFixed(0)}%`;
+        : `${job.status}… ${pct}%`;
 
   return (
-    <div style={{ margin: 12, padding: 10, border: '1px solid #e0e0e0', borderRadius: 6 }}>
-      <div style={{ fontSize: 13 }}>
-        <b>{job.job_id?.slice(0, 8)}</b> — {label}
-      </div>
-      <div style={{ height: 8, background: '#eee', borderRadius: 4, marginTop: 6 }}>
-        <div
-          style={{
-            height: '100%', borderRadius: 4, background: '#2e7d32',
-            width: `${job.status === 'completed' ? 100 : job.progress_pct ?? 0}%`,
-            transition: 'width 0.5s',
-          }}
-        />
+    <div className="cl-job">
+      <div><b>{job.job_id?.slice(0, 8)}</b> — {label}</div>
+      <div className="cl-jobbar">
+        <div style={{ transform: `scaleX(${pct / 100})` }} />
       </div>
     </div>
   );

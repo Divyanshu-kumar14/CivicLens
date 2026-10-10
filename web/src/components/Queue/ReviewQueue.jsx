@@ -25,7 +25,7 @@ export default function ReviewQueue({
   };
 
   return (
-    <div style={{ padding: 12, overflowY: 'auto', flex: 1 }} tabIndex={0} onKeyDown={onKey}>
+    <div className="cl-queue" tabIndex={0} onKeyDown={onKey} aria-label="Review queue">
       <QueueActions
         count={selectedIds.size}
         total={rows.length}
@@ -34,10 +34,10 @@ export default function ReviewQueue({
         onDismiss={onDismiss}
         onExportSelected={onExportSelected}
       />
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      <table>
         <thead>
-          <tr style={{ textAlign: 'left', borderBottom: '2px solid #e0e0e0' }}>
-            <th><input type="checkbox" checked={selectedIds.size === rows.length && rows.length > 0} onChange={onSelectAll} /></th>
+          <tr>
+            <th><input type="checkbox" aria-label="Select all" checked={selectedIds.size === rows.length && rows.length > 0} onChange={onSelectAll} /></th>
             <th>Severity</th>
             <th>Type</th>
             <th>Location</th>
@@ -46,14 +46,11 @@ export default function ReviewQueue({
         </thead>
         <tbody>
           {rows.map((t) => (
-            <tr
-              key={t.ticket_id}
-              onClick={() => onRowClick(t.ticket_id)}
-              style={{ borderBottom: '1px solid #eee', cursor: 'pointer' }}
-            >
+            <tr key={t.ticket_id} onClick={() => onRowClick(t.ticket_id)}>
               <td onClick={(e) => e.stopPropagation()}>
                 <input
                   type="checkbox"
+                  aria-label={`Select ${t.ticket_id}`}
                   checked={selectedIds.has(t.ticket_id)}
                   onChange={() => onToggleSelect(t.ticket_id)}
                 />
@@ -66,8 +63,10 @@ export default function ReviewQueue({
           ))}
         </tbody>
       </table>
-      {rows.length === 0 && <p style={{ color: '#666' }}>Queue empty — nothing awaiting review.</p>}
-      <small style={{ color: '#666' }}>Shortcuts: A approve · D dismiss · 1/2/3 severity</small>
+      {rows.length === 0 && <p className="cl-empty">Queue empty — nothing awaiting review.</p>}
+      <div className="cl-kbd-row">
+        Shortcuts: <kbd>A</kbd> approve <kbd>D</kbd> dismiss <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> severity
+      </div>
     </div>
   );
 }

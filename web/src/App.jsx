@@ -16,8 +16,7 @@ const TicketDrawer = lazy(() => import('./components/Ticket/TicketDrawer.jsx'));
 const JobProgress = lazy(() => import('./components/Upload/JobProgress.jsx'));
 const UploadZone = lazy(() => import('./components/Upload/UploadZone.jsx'));
 
-// Phase-1 mock fallback: shown when the API is unreachable (Task 1.5.6).
-// Phase 2 (Task 2.3.4): live data replaces these as soon as GET /tickets answers.
+// Mock fallback: shown when the API is unreachable.
 const MOCK_TICKETS = [
   { ticket_id: 't_hole01', centroid: [12.9716, 77.5946], severity: 82, status: 'filed',
     repeat_count: 6, crop_url: '', signals: { area_norm: 78, bus_route_w: 100, center_lane: 100 },
@@ -40,6 +39,16 @@ const MOCK_TICKETS = [
 ];
 
 const SEV_PRESET = { low: 25, med: 55, high: 85 };
+const ALL_ON = new Set(['filed', 'pending', 'dismissed']);
+
+function useClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return now.toISOString().slice(11, 19) + ' UTC';
+}
 
 export default function App() {
   const [tickets, setTickets] = useState(MOCK_TICKETS);
@@ -48,8 +57,10 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [showRaw, setShowRaw] = useState(false);
+  const [statusFilter, setStatusFilter] = useState(new Set(ALL_ON));
   const [job, setJob] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const clock = useClock();
 
   const refresh = useCallback(async () => {
     try {
@@ -57,7 +68,7 @@ export default function App() {
       setTickets(data);
       setLive(true);
     } catch {
-      setLive(false); // API down -> keep mocks, banner shows Demo mode
+      setLive(false);
     }
   }, []);
 
@@ -118,6 +129,16 @@ export default function App() {
     }
   };
 
+  const toggleStatus = (s) => {
+    setStatusFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) {
+        if (next.size > 1) next.delete(s);
+      } else next.add(s);
+      return next;
+    });
+  };
+
   const stats = useMemo(() => {
     const by = (s) => tickets.filter((t) => t.status === s).length;
     return {
@@ -135,17 +156,29 @@ export default function App() {
   return (
     <>
       <header className="cl-header">
-        <span className="logo">CivicLens</span>
-        <span className="ward">ward-12-demo {live ? '' : '· Demo mode (API offline)'}</span>
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          {['map', 'queue', 'upload'].map((v) => (
-            <button key={v} className="btn-ghost" style={{ color: '#fff', borderColor: '#555' }}
-              onClick={() => setView(v)}>
-              {v[0].toUpperCase() + v.slice(1)}
-            </button>
-          ))}
-          <button className="btn-ghost" style={{ color: '#fff', borderColor: '#555' }}
-            onClick={() => downloadCSV('filed')}>
+        <span className="cl-brand">
+          <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="7" fill="#151b26" stroke="rgba(255,255,255,0.12)" />
+            <circle cx="16" cy="16" r="6.5" fill="none" stroke="#ff5252" strokeWidth="2.5" />
+            <circle cx="16" cy="16" r="2.4" fill="#ff5252" />
+          </svg>
+          <span className="wordmark">CivicLens</span>
+        </span>
+        <span className="cl-ward">ward-12-demo</span>
+        <span className="cl-ward" title={live ? 'Connected to the API' : 'API unreachable — showing mock data'}>
+          <span className={`cl-live-dot${live ? '' : ' off'}`} />
+          {live ? 'Live' : 'Demo mode'}
+        </span>
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span className="cl-clock">{clock}</span>
+          <nav className="cl-tabs" aria-label="Views">
+            {['map', 'queue', 'upload'].map((v) => (
+              <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>
+                {v[0].toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </nav>
+          <button className="btn-ghost" onClick={() => downloadCSV('filed')}>
             Export CSV
           </button>
         </span>
@@ -160,6 +193,9 @@ export default function App() {
             showRaw={showRaw}
             onToggleRaw={() => setShowRaw((v) => !v)}
             onPinClick={openTicket}
+            selectedId={selectedId}
+            statusFilter={statusFilter}
+            onToggleStatus={toggleStatus}
           />
         )}
         {view === 'queue' && (
@@ -182,7 +218,7 @@ export default function App() {
           />
         )}
         {view === 'upload' && (
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
             <UploadZone onSubmit={submitUpload} busy={uploading} />
             <JobProgress
               job={job}

@@ -1,7 +1,10 @@
 import { useState } from 'react';
+import { colorFor } from '../../utils/severity.js';
 import FrameStrip from './FrameStrip.jsx';
 import SeverityBar from './SeverityBar.jsx';
 import TraceTimeline from './TraceTimeline.jsx';
+
+const STATUS_LABEL = { filed: 'Filed', pending: 'In review', dismissed: 'Dismissed' };
 
 export default function TicketDrawer({ ticket, onClose, onOverride }) {
   const [editSev, setEditSev] = useState(null);
@@ -22,13 +25,18 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
   };
 
   return (
-    <aside className="cl-drawer">
+    <aside className="cl-drawer" aria-label={`Ticket ${ticket.ticket_id}`}>
       <button className="btn-ghost" onClick={onClose}>← Close</button>
       <h3>{ticket.ticket_id}</h3>
+      <div className="cl-statusline">
+        <span className="dot" style={{ background: colorFor(ticket) }} />
+        {STATUS_LABEL[ticket.status] || ticket.status}
+        {ticket.repeat_count ? ` · seen ${ticket.repeat_count}×` : ''}
+      </div>
       {ticket.crop_url ? (
-        <img className="hero" src={ticket.crop_url} alt="detection crop" />
+        <img className="hero" src={ticket.crop_url} alt={`Crop of ${ticket.ticket_id}`} />
       ) : (
-        <img className="hero" alt="no crop yet" />
+        <div className="cl-hero-empty">No crop stored yet</div>
       )}
       <FrameStrip ticket={ticket} />
       <SeverityBar severity={editSev ?? ticket.severity} />
@@ -44,11 +52,9 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
           </div>
         ))}
       </div>
-      <div>
-        <small>
-          📍 {ticket.centroid?.[0]}, {ticket.centroid?.[1]}
-          {ticket.created_at ? ` · ${ticket.created_at}` : ''}
-        </small>
+      <div className="cl-meta">
+        {ticket.centroid?.[0]?.toFixed(5)}, {ticket.centroid?.[1]?.toFixed(5)}
+        {ticket.created_at ? ` · ${ticket.created_at}` : ''}
       </div>
       <div className="cl-actions">
         <button className="btn-file" onClick={() => onOverride(ticket.ticket_id, 'filed')}>
