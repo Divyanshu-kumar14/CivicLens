@@ -8,6 +8,7 @@ import {
   uploadJob,
 } from './api/client.js';
 import MapView from './components/Map/MapView.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import StatsRail from './components/Stats/StatsRail.jsx';
 
 // Below-fold views load on demand — Map + rail stay in the initial chunk.
@@ -229,11 +230,13 @@ export default function App() {
           </div>
         )}
         {selected && (
-          <TicketDrawer
-            ticket={selected}
-            onClose={() => setSelectedId(null)}
-            onOverride={(id, to) => applyOverride(id, to)}
-          />
+          <ErrorBoundary message="The ticket drawer crashed. Try another pin.">
+            <TicketDrawer
+              ticket={selected}
+              onClose={() => setSelectedId(null)}
+              onOverride={(id, to) => applyOverride(id, to)}
+            />
+          </ErrorBoundary>
         )}
         </Suspense>
       </div>
