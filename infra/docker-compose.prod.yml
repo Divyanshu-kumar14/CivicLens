@@ -1,0 +1,33 @@
+# Production overlay: real AWS backends instead of local emulators.
+#
+# Usage on EC2 (IAM role attached — no access keys needed):
+#   WEBHOOK_SECRET=$(openssl rand -hex 32) \
+#   CORS_ORIGINS=http://<public-dns> \
+#   SQS_QUEUE_URL=https://sqs.<region>.amazonaws.com/<acct>/civic-lens-jobs \
+#   AWS_REGION=ap-southeast-2 \
+#   docker compose -f docker-compose.yml -f infra/docker-compose.prod.yml up --no-deps -d agent-api web
+#
+# Run setup-aws.sh first (one time) to create buckets/tables/queue.
+# Local emulators are skipped via --no-deps (2GB boxes can't spare the RAM).
+services:
+  agent-api:
+    environment: !override
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL:?SQS_QUEUE_URL must be set for prod}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set for prod}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - S3_RAW_BUCKET=${S3_RAW_BUCKET:-civic-lens-raw}
+      - S3_CROPS_BUCKET=${S3_CROPS_BUCKET:-civic-lens-crops}
+      - DYNAMO_TABLE_DETECTIONS=${DYNAMO_TABLE_DETECTIONS:-cl-detections}
+      - DYNAMO_TABLE_TICKETS=${DYNAMO_TABLE_TICKETS:-cl-tickets}
+      - DYNAMO_TABLE_JOBS=${DYNAMO_TABLE_JOBS:-cl-jobs}
+
+  vision-worker:
+    environment: !override
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL:?SQS_QUEUE_URL must be set for prod}
+      - S3_RAW_BUCKET=${S3_RAW_BUCKET:-civic-lens-raw}
+      - S3_CROPS_BUCKET=${S3_CROPS_BUCKET:-civic-lens-crops}
+      - DYNAMO_TABLE_DETECTIONS=${DYNAMO_TABLE_DETECTIONS:-cl-detections}
+      - DYNAMO_TABLE_TICKETS=${DYNAMO_TABLE_TICKETS:-cl-tickets}
+      - DYNAMO_TABLE_JOBS=${DYNAMO_TABLE_JOBS:-cl-jobs}
