@@ -25,6 +25,19 @@ def to_dynamo(value):
     return value
 
 
+def from_dynamo(value):
+    """Recursively convert Decimals back to int/float for JSON responses."""
+    from decimal import Decimal
+
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, dict):
+        return {k: from_dynamo(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [from_dynamo(v) for v in value]
+    return value
+
+
 def _require_boto3():  # pragma: no cover - needs boto3 installed
     try:
         import boto3
@@ -76,12 +89,12 @@ class DynamoClient:
             Key={"job_id": job_id},
             UpdateExpression=expr,
             ExpressionAttributeNames={"#s": "status"},
-            ExpressionAttributeValues=values,
+            ExpressionAttributeValues=to_dynamo(values),
         )
 
     def get_job(self, job_id: str) -> dict:
         """Get single job by ID."""
-        return self._table(self.t_jobs).get_item(Key={"job_id": job_id}).get("Item", {})
+        return from_dynamo(self._table(self.t_jobs).get_item(Key={"job_id": job_id}).get("Item", {}))
 
     # --- Detections ---
     def put_detections(self, detections: list[dict]):
@@ -98,7 +111,7 @@ class DynamoClient:
         resp = self._table(self.t_detections).query(
             IndexName="job-index", KeyConditionExpression=Key("job_id").eq(job_id)
         )
-        return resp.get("Items", [])
+        return from_dynamo(resp.get("Items", []))
 
     # --- Tickets ---
     def put_ticket(self, ticket: dict):
@@ -118,7 +131,7 @@ class DynamoClient:
 
     def get_ticket(self, ticket_id: str) -> dict:
         """Get single ticket."""
-        return self._table(self.t_tickets).get_item(Key={"ticket_id": ticket_id}).get("Item", {})
+        return from_dynamo(self._table(self.t_tickets).get_item(Key={"ticket_id": ticket_id}).get("Item", {}))
 
     def query_tickets(self, status: str | None = None, sort_by: str = "severity",
                       projection: str | None = None) -> list[dict]:
@@ -145,4 +158,4 @@ class DynamoClient:
             items.sort(key=lambda t: t.get("severity", 0), reverse=True)
         elif sort_by == "timestamp":
             items.sort(key=lambda t: t.get("created_at", ""), reverse=True)
-        return items
+        return from_dynamo(items)

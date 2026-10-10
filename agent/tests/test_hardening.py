@@ -105,3 +105,13 @@ def test_to_dynamo_converts_floats():
     assert out["centroid"] == [Decimal("12.9"), Decimal("77.5")]
     assert out["trace"][0]["conf"] == Decimal("0.5")
     assert out["n"] == 3 and out["s"] == "x"
+
+
+def test_from_dynamo_restores_numbers():
+    from decimal import Decimal
+
+    from agent.db.dynamo import from_dynamo, to_dynamo
+
+    original = {"sev": 82, "score": 55.5, "centroid": [12.9, 77.5],
+                "trace": [{"conf": 0.4}], "s": "filed"}
+    assert from_dynamo(to_dynamo(original)) == original
