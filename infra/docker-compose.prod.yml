@@ -10,6 +10,10 @@
 # Run setup-aws.sh first (one time) to create buckets/tables/queue.
 # Local emulators are skipped via --no-deps (2GB boxes can't spare the RAM).
 services:
+  web:
+    ports: !override
+      - "80:80"
+
   agent-api:
     environment: !override
       - AWS_REGION=${AWS_REGION:-us-east-1}
