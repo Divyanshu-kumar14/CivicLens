@@ -33,6 +33,14 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
     navigator.clipboard?.writeText(JSON.stringify(payload, null, 2));
   };
 
+  // Demo-crop fallback: seed tickets and any ticket without a stored crop
+  // show a local synthetic crop so the drawer never looks empty. Real S3
+  // crops always win when present; the onError handler hides the img if the
+  // demo asset is missing (e.g. a brand-new ticket id), revealing the
+  // dashed placeholder instead of a broken-image icon.
+  const demoSrc = `/demo-crops/${ticket.ticket_id}.jpg`;
+  const heroSrc = ticket.crop_url || demoSrc;
+
   return (
     <motion.aside
       className="z-20 flex w-[368px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-white/8 bg-[rgba(15,18,24,0.88)] p-3.5 backdrop-blur-2xl max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:top-auto max-md:max-h-[62vh] max-md:w-full max-md:rounded-t-2xl max-md:border-l-0 max-md:border-t"
@@ -57,13 +65,20 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
 
       <h3 className="font-display text-lg font-bold tracking-tight">{ticket.ticket_id}</h3>
 
-      {ticket.crop_url ? (
-        <img className="w-full rounded-2xl border border-white/10" src={ticket.crop_url} alt={`Crop of ${ticket.ticket_id}`} />
-      ) : (
+      {/* Hero crop: real S3 crop wins; otherwise the local demo crop. The
+          dashed placeholder sits beneath — if the img fails (unknown ticket
+          id with no demo asset), it hides itself and the placeholder shows. */}
+      <div className="relative w-full">
         <div className="flex aspect-video w-full items-center justify-center rounded-2xl border border-dashed border-white/12 bg-white/[0.02] text-xs text-slate-500">
           No crop stored yet
         </div>
-      )}
+        <img
+          className="absolute inset-0 h-full w-full rounded-2xl border border-white/10 object-cover"
+          src={heroSrc}
+          alt={`Crop of ${ticket.ticket_id}`}
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+      </div>
       <FrameStrip ticket={ticket} />
 
       <Card className="p-3.5">
