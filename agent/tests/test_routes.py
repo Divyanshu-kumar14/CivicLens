@@ -45,6 +45,30 @@ def _client():
     return TestClient(app), fake
 
 
+def test_presign_reuses_one_s3_client(monkeypatch):
+    """Regression guard: presign misses must share a client, not rebuild one
+    (boto3 construction) per ticket at every TTL rollover."""
+    import agent.routes.tickets as tickets_mod
+    from agent.services.cache import get_cache
+
+    built = []
+
+    class FakeS3:
+        def get_presigned_url(self, bucket, key):
+            return f"https://cdn.invalid/{bucket}/{key}"
+
+    monkeypatch.setattr(tickets_mod, "_s3", None)
+    monkeypatch.setattr("agent.db.s3.S3Client",
+                        lambda *a, **k: built.append(True) or FakeS3())
+    get_cache().clear()
+    t1 = {"ticket_id": "t1", "crop_url": "s3://crops/a.jpg"}
+    t2 = {"ticket_id": "t2", "crop_url": "s3://crops/b.jpg"}
+    assert tickets_mod.presign_crop(t1)["crop_url"] == "https://cdn.invalid/crops/a.jpg"
+    assert tickets_mod.presign_crop(t2)["crop_url"] == "https://cdn.invalid/crops/b.jpg"
+    assert len(built) == 1
+    get_cache().clear()
+
+
 def test_health():
     c, _ = _client()
     assert c.get("/health").json() == {"status": "ok", "service": "civiclens-agent"}

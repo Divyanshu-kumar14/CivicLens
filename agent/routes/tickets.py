@@ -22,6 +22,20 @@ log = logging.getLogger("civiclens.tickets")
 LIST_TTL_S = 5.0  # Task 3.1.4: ticket-list response cache
 PRESIGN_TTL_S = 300.0  # Task 3.1.4: presigned-URL cache (URLs live 15 min)
 
+_s3 = None  # module-level lazy client (boto3 import stays lazy for tests)
+
+
+def _get_s3():
+    """Shared S3 client. Previously constructed fresh per presign cache miss
+    per ticket — boto3 client construction (credential chain + service model
+    load) on every miss of every ticket at each TTL rollover."""
+    global _s3
+    if _s3 is None:
+        from agent.db.s3 import S3Client
+
+        _s3 = S3Client()
+    return _s3
+
 
 class OverrideRequest(BaseModel):
     to: Literal["filed", "pending", "dismissed"]
@@ -41,10 +55,8 @@ def presign_crop(ticket: dict) -> dict:
     if cached is not None:
         return {**ticket, "crop_url": cached}
     try:
-        from agent.db.s3 import S3Client
-
         bucket, _, key = url[5:].partition("/")
-        fresh = S3Client().get_presigned_url(bucket, key)
+        fresh = _get_s3().get_presigned_url(bucket, key)
         get_cache().set(("presign", url), fresh, ttl_s=PRESIGN_TTL_S)
         ticket = {**ticket, "crop_url": fresh}
     except Exception as exc:

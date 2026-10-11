@@ -1,5 +1,4 @@
 """Tests for agent/services/webhook.py + trace.py."""
-import asyncio
 import hashlib
 import hmac
 import json
@@ -46,8 +45,8 @@ def test_send_success_against_local_server():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         svc = WebhookService({})
-        res = asyncio.run(svc.send(f"http://127.0.0.1:{server.server_port}/hook",
-                                   {"ticket_id": "t1"}))
+        res = svc.send(f"http://127.0.0.1:{server.server_port}/hook",
+                       {"ticket_id": "t1"})
     finally:
         server.shutdown()
     assert res.ok and res.status_code == 200 and res.attempts == 1
@@ -59,8 +58,32 @@ def test_send_dead_letters_after_retries(monkeypatch):
 
     monkeypatch.setattr(webhook_mod, "RETRY_BACKOFF_S", (0, 0, 0))
     svc = WebhookService({})
-    res = asyncio.run(svc.send("http://127.0.0.1:9/nope", {"ticket_id": "t9"}))
+    res = svc.send("http://127.0.0.1:9/nope", {"ticket_id": "t9"})
     assert not res.ok and res.attempts == 4 and res.status_code == 0
+
+
+def test_send_reuses_one_http_client_against_local_server():
+    """Regression guard: the connection pool must survive across tickets."""
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        svc = WebhookService({})
+        url = f"http://127.0.0.1:{server.server_port}/hook"
+        assert svc.send(url, {"ticket_id": "t1"}).ok
+        assert svc.send(url, {"ticket_id": "t2"}).ok
+    finally:
+        server.shutdown()
+    assert svc._client is not None
+    assert svc._http() is svc._client  # same pooled client, not rebuilt
 
 
 def test_trace_memory_roundtrip_and_jsonl():

@@ -93,3 +93,44 @@ def test_process_job_end_to_end(tmp_path):
     assert db.statuses["j1"][0] == "completed"
     assert len(db.detections) == 2
     assert made["webhook"] == "http://city/hook"
+
+
+def _worker():
+    from agent.worker import BatchWorker
+
+    return BatchWorker(config={"severity": {}}, db=FakeDB(), s3=FakeS3())
+
+
+def test_download_local_path_copies(tmp_path):
+    src = tmp_path / "a.bin"
+    src.write_bytes(b"data")
+    dst = tmp_path / "b.bin"
+    _worker()._download(str(src), str(dst))
+    assert dst.read_bytes() == b"data"
+
+
+def test_download_http_uses_bounded_fetch(tmp_path, monkeypatch):
+    """Regression guard: HTTP fetch must carry a timeout (no urlretrieve)."""
+    import urllib.request
+
+    seen = {}
+
+    class FakeResp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self, n=-1):
+            return b""
+
+    def fake_urlopen(url, timeout=None):
+        seen["url"] = url
+        seen["timeout"] = timeout
+        return FakeResp()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    _worker()._download("http://example.invalid/v.mp4", str(tmp_path / "v.mp4"))
+    assert seen["url"] == "http://example.invalid/v.mp4"
+    assert seen["timeout"] == 30
