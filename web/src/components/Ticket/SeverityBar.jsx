@@ -20,13 +20,15 @@ export default function SeverityBar({ severity = 0, compact = false }) {
   }, [severity]);
 
   return (
-    <div>
-      {!compact && (
+    <div className={compact ? 'sev-compact' : undefined}>
+      {!compact ? (
         <div>
-          <b>{severity}</b> — {labelFor(severity)}
+          <span className="sev-num">{severity}</span> — {labelFor(severity)}
         </div>
+      ) : (
+        <span className="sev-num-sm">{severity}</span>
       )}
-      <div className="sevbar" title={`${severity} (${labelFor(severity)})`}>
+      <div className="sevbar" style={compact ? { flex: 1 } : undefined} title={`${severity} (${labelFor(severity)})`}>
         <div
           className="fill"
           style={{ transform: `scaleX(${scale})`, background: barColor(severity), transition: 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)' }}
