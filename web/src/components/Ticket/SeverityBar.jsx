@@ -9,6 +9,7 @@ function barColor(severity) {
 
 // Horizontal 0-100 bar: numeric value + label, animated fill, threshold
 // markers at 40 (review) and 70 (auto-file). `compact` fits table rows.
+// Premium skin keeps the same math — Tailwind layout, display-face numerals.
 export default function SeverityBar({ severity = 0, compact = false }) {
   const [scale, setScale] = useState(0);
   useEffect(() => {
@@ -19,22 +20,34 @@ export default function SeverityBar({ severity = 0, compact = false }) {
     return () => cancelAnimationFrame(t);
   }, [severity]);
 
+  if (compact) {
+    return (
+      <span className="flex items-center">
+        <span className="font-display mr-2 text-xs font-bold tabular-nums">{severity}</span>
+        <span className="relative m-0 h-2.5 flex-1 rounded bg-[#161c26]" title={`${severity} (${labelFor(severity)})`}>
+          <span
+            className="block h-full w-full origin-left rounded"
+            style={{ transform: `scaleX(${scale})`, background: barColor(severity), transition: 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)' }}
+          />
+          <span className="absolute -top-[3px] h-4 w-0.5 bg-white/60" style={{ left: '40%' }} title="review threshold" />
+          <span className="absolute -top-[3px] h-4 w-0.5 bg-white/60" style={{ left: '70%' }} title="auto-file threshold" />
+        </span>
+      </span>
+    );
+  }
+
   return (
-    <div className={compact ? 'sev-compact' : undefined}>
-      {!compact ? (
-        <div>
-          <span className="sev-num">{severity}</span> — {labelFor(severity)}
-        </div>
-      ) : (
-        <span className="sev-num-sm">{severity}</span>
-      )}
-      <div className="sevbar" style={compact ? { flex: 1 } : undefined} title={`${severity} (${labelFor(severity)})`}>
+    <div>
+      <div className="text-sm text-slate-300">
+        <span className="font-display text-lg font-bold tabular-nums text-slate-50">{severity}</span> — {labelFor(severity)}
+      </div>
+      <div className="relative m-0 my-[7px] h-2.5 rounded bg-[#161c26]" title={`${severity} (${labelFor(severity)})`}>
         <div
-          className="fill"
+          className="h-full w-full origin-left rounded"
           style={{ transform: `scaleX(${scale})`, background: barColor(severity), transition: 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)' }}
         />
-        <div className="mark" style={{ left: '40%' }} title="review threshold" />
-        <div className="mark" style={{ left: '70%' }} title="auto-file threshold" />
+        <div className="absolute -top-[3px] h-4 w-0.5 bg-white/60" style={{ left: '40%' }} title="review threshold" />
+        <div className="absolute -top-[3px] h-4 w-0.5 bg-white/60" style={{ left: '70%' }} title="auto-file threshold" />
       </div>
     </div>
   );

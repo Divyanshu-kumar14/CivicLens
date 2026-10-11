@@ -96,27 +96,42 @@ export default function MapView({
           </Marker>
         ))}
       </MapContainer>
-      <div className="cl-filters">
-        {Object.keys(STATUS_LABEL).map((s) => (
+      <div className="absolute left-[52px] top-3 z-[500] flex gap-1.5">
+        {Object.keys(STATUS_LABEL).map((s) => {
+          const on = !statusFilter || statusFilter.has(s);
+          return (
           <button
             key={s}
-            className="cl-chip"
-            aria-pressed={!statusFilter || statusFilter.has(s)}
+            aria-pressed={on}
             onClick={() => onToggleStatus(s)}
             title={`Toggle ${STATUS_LABEL[s]} pins`}
+            className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold backdrop-blur-xl transition-all duration-150 hover:-translate-y-px ${
+              on
+                ? 'border-white/12 bg-[rgba(12,15,21,0.88)] text-slate-200'
+                : 'border-white/8 bg-[rgba(12,15,21,0.6)] text-slate-500 opacity-50'
+            }`}
           >
-            <span className="dot" style={{ background: colorFor({ status: s }) }} />
-            {STATUS_LABEL[s]} {counts[s] ?? 0}
+            <span className="h-2 w-2 rounded-full" style={{ background: colorFor({ status: s }), boxShadow: `0 0 6px ${colorFor({ status: s })}` }} />
+            {STATUS_LABEL[s]} <span className="tabular-nums">{counts[s] ?? 0}</span>
           </button>
-        ))}
+          );
+        })}
       </div>
-      <button className="cl-rawtoggle" aria-pressed={showRaw} onClick={onToggleRaw}>
+      <button
+        aria-pressed={showRaw}
+        onClick={onToggleRaw}
+        className={`absolute right-3 top-3 z-[500] rounded-[10px] border px-3 py-2 text-[13px] font-semibold backdrop-blur-xl transition-colors ${
+          showRaw
+            ? 'border-cyan-300/60 bg-[rgba(12,15,21,0.9)] text-cyan-100'
+            : 'border-white/10 bg-[rgba(12,15,21,0.88)] text-slate-100 hover:border-white/25'
+        }`}
+      >
         {showRaw ? 'Hide' : 'Show'} raw detections
       </button>
-      <div className="cl-legend">
-        <div className="row"><span className="dot" style={{ background: '#ff5252' }} /> Filed ≥ 70</div>
-        <div className="row"><span className="dot" style={{ background: '#ffb020' }} /> Review 40–69</div>
-        <div className="row"><span className="dot" style={{ background: '#6b7280' }} /> Dismissed &lt; 40</div>
+      <div className="absolute bottom-[26px] left-3 z-[500] rounded-[10px] border border-white/10 bg-[rgba(12,15,21,0.88)] px-3 py-2 text-xs text-slate-400 backdrop-blur-xl">
+        <div className="my-1 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: '#ff5252' }} /> Filed ≥ 70</div>
+        <div className="my-1 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: '#ffb020' }} /> Review 40–69</div>
+        <div className="my-1 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: '#6b7280' }} /> Dismissed &lt; 40</div>
       </div>
     </div>
   );
