@@ -19,7 +19,7 @@ function soft(color) {
   return color + '55';
 }
 
-function pinIcon(ticket, selected) {
+function pinIcon(ticket, selected, delayMs = 0) {
   const key = `${ticket.ticket_id}|${ticket.severity}|${ticket.status}|${selected}`;
   const hit = iconCache.get(key);
   if (hit) return hit;
@@ -28,9 +28,11 @@ function pinIcon(ticket, selected) {
   const pulse = ticket.status === 'filed' ? '<span class="pin-pulse"></span>' : '';
   const icon = L.divIcon({
     className: 'cl-pin-wrap',
+    // --pin-delay staggers the one-shot drop-in so a full map blooms instead
+    // of popping; capped so large fleets don't cascade forever.
     html:
       `<span class="cl-pin${selected ? ' sel' : ''}"` +
-      ` style="--pin:${color};--pin-soft:${soft(color)};width:${size}px;height:${size}px">` +
+      ` style="--pin:${color};--pin-soft:${soft(color)};width:${size}px;height:${size}px;--pin-delay:${delayMs}ms">` +
       `${pulse}</span>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -76,11 +78,11 @@ export default function MapView({
               pathOptions={{ color: '#8b94a3', weight: 1, fillOpacity: 0.55 }}
             />
           ))}
-        {visible.map((t) => (
+        {visible.map((t, i) => (
           <Marker
             key={t.ticket_id}
             position={[t.centroid[0], t.centroid[1]]}
-            icon={pinIcon(t, t.ticket_id === selectedId)}
+            icon={pinIcon(t, t.ticket_id === selectedId, Math.min(i, 20) * 18)}
             keyboard
             title={`${t.ticket_id}, severity ${t.severity}, ${STATUS_LABEL[t.status] || t.status}`}
             eventHandlers={{ click: () => onPinClick(t.ticket_id) }}
