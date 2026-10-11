@@ -7,10 +7,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY agent/ ./agent/
 COPY config.yaml ./config.yaml
-# Demo worker's classical CV path (agent/demo_worker.py): flat copies of two
-# torch-free vision modules so the agent image stays lean (no ultralytics).
-COPY vision/classical.py ./cv_classical.py
-COPY vision/gps.py ./gps_util.py
+# Demo worker's classical CV path (agent/demo_worker.py): the two torch-free
+# vision modules as a real package (cluster.py imports vision.gps). No
+# ultralytics/torch anywhere on this import graph — the image stays lean.
+COPY vision/gps.py ./vision/gps.py
+COPY vision/classical.py ./vision/classical.py
+RUN touch ./vision/__init__.py
 
 ENV PYTHONUNBUFFERED=1
 
