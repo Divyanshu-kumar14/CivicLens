@@ -69,6 +69,27 @@ def test_presign_reuses_one_s3_client(monkeypatch):
     get_cache().clear()
 
 
+def test_get_job_presigns_annotated_url(monkeypatch):
+    """GET /jobs/{id} turns the s3:// timelapse into a playable https URL."""
+    import agent.routes.jobs as jobs_mod
+    from agent.services.cache import get_cache
+
+    class FakeS3:
+        def get_presigned_url(self, bucket, key):
+            return f"https://cdn.invalid/{bucket}/{key}"
+
+    monkeypatch.setattr(jobs_mod, "_s3", FakeS3())
+    get_cache().clear()
+    c, fake = _client()
+    fake.jobs["j1"] = {"job_id": "j1", "status": "completed",
+                       "counts": {"raw": 4, "clusters": 1,
+                                  "annotated_url": "s3://civic-lens-raw/j1/annotated.mp4"}}
+    r = c.get("/jobs/j1")
+    assert r.status_code == 200
+    assert r.json()["counts"]["annotated_url"] == \
+        "https://cdn.invalid/civic-lens-raw/j1/annotated.mp4"
+
+
 def test_health():
     c, _ = _client()
     assert c.get("/health").json() == {"status": "ok", "service": "civiclens-agent"}

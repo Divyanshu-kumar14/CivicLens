@@ -4,6 +4,9 @@ import { Progress } from '../ui/primitives.jsx';
 
 // Queued -> Processing -> N detections -> M tickets. Polls GET /jobs/{id} every 2s.
 // Premium skin: glass card + animated progress. Polling logic untouched.
+// Completed jobs with an annotated timelapse ("see what the AI saw") get a
+// player. The URL is presigned (15-min expiry) from the last poll — if it
+// expired, the video hides itself instead of showing a broken player.
 export default function JobProgress({ job, fetchJob, onUpdate, onDone }) {
   useEffect(() => {
     if (!job || job.status === 'completed' || job.status === 'failed') return;
@@ -28,11 +31,27 @@ export default function JobProgress({ job, fetchJob, onUpdate, onDone }) {
       : job.status === 'failed'
         ? 'Job failed'
         : `${job.status}… ${pct}%`;
+  const annotated = counts.annotated_url;
+  const playable = job.status === 'completed' && annotated && annotated.startsWith('http');
 
   return (
     <Card className="mx-3.5 mb-3.5 p-3.5 text-[13px] tabular-nums">
       <div><b className="font-display">{job.job_id?.slice(0, 8)}</b> — {label}</div>
       <Progress value={pct / 100} className="mt-2" />
+      {playable && (
+        <div className="mt-3">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+            See what the AI saw — detection timelapse
+          </div>
+          <video
+            controls
+            preload="none"
+            src={annotated}
+            className="w-full rounded-xl border border-white/10 bg-black"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        </div>
+      )}
     </Card>
   );
 }

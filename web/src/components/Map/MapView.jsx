@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import L from 'leaflet';
-import { CircleMarker, MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet';
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip } from 'react-leaflet';
 import { colorFor } from '../../utils/severity.js';
 import { prettyStatus, prettyTicketId } from '../../utils/labels.js';
 
@@ -54,6 +54,7 @@ export default function MapView({
   selectedId,
   statusFilter,
   onToggleStatus,
+  routeTrack = null,
 }) {
   const visible = useMemo(
     () => tickets.filter((t) => !statusFilter || statusFilter.has(t.status)),
@@ -85,6 +86,13 @@ export default function MapView({
               pathOptions={{ color: '#8b94a3', weight: 1, fillOpacity: 0.55 }}
             />
           ))}
+        {/* Surveyed route behind the pins it produced (last upload's GPS). */}
+        {routeTrack && routeTrack.length >= 2 && (
+          <Polyline
+            positions={routeTrack}
+            pathOptions={{ color: '#3ae2ff', weight: 3, opacity: 0.7 }}
+          />
+        )}
         {visible.map((t, i) => (
           <Marker
             key={t.ticket_id}

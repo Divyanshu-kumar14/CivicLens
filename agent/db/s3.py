@@ -70,3 +70,10 @@ class S3Client:
         """Download S3 object to local path."""
         os.makedirs(os.path.dirname(os.path.abspath(local_path)), exist_ok=True)
         self._s3.download_file(bucket, key, local_path)
+
+    def put_file(self, local_path: str, bucket: str, key: str,
+                 content_type: str = "application/octet-stream") -> str:
+        """Upload a local file to an explicit key. Return S3 URI."""
+        self._s3.upload_file(local_path, bucket, key,
+                             ExtraArgs={"ContentType": content_type})
+        return self.uri(bucket, key)

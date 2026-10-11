@@ -30,10 +30,16 @@ class FakeDB:
 class FakeS3:
     def __init__(self):
         self.crops = {}
+        self.files = {}
+        self.raw_bucket = "civic-lens-raw"
 
     def upload_crop(self, data, det_id):
         self.crops[det_id] = data
         return f"s3://crops/{det_id}.jpg"
+
+    def put_file(self, local_path, bucket, key, content_type="application/octet-stream"):
+        self.files[key] = local_path
+        return f"s3://{bucket}/{key}"
 
 
 def _synthetic_route(tmp_path, n_frames=12, fps=5):
@@ -68,6 +74,9 @@ def test_demo_worker_completes_job_end_to_end(tmp_path):
     assert sum(counts[k] for k in ("filed", "review", "dismissed")) == counts["clusters"]
     assert len(s3.crops) == counts["raw"]  # every detection stored a crop
     assert len(db.detections) == counts["raw"]
+    # Annotated timelapse uploaded next to the crops.
+    assert counts["annotated_url"].startswith("s3://civic-lens-raw/j-demo/")
+    assert len(s3.files) == 1
 
 
 def test_demo_worker_without_gps_uses_fallback(tmp_path):

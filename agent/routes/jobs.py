@@ -48,6 +48,22 @@ def get_s3() -> S3Client:
     return _s3
 
 
+def _presign_job_artifact(job: dict) -> dict:
+    """Presign the annotated timelapse URL (fail-open to s3://). Same pattern
+    as tickets.presign_crop; jobs polls every 2s so no extra cache needed."""
+    counts = job.get("counts") or {}
+    url = counts.get("annotated_url", "")
+    if not url or not url.startswith("s3://"):
+        return job
+    try:
+        bucket, _, key = url[5:].partition("/")
+        fresh = get_s3().get_presigned_url(bucket, key)
+        return {**job, "counts": {**counts, "annotated_url": fresh}}
+    except Exception as exc:
+        log.warning("annotated presign failed for %s: %s", url, exc)
+        return job
+
+
 def remote_size_ok(url: str) -> bool:
     """Best-effort Content-Length check. Fail-open (True) when unknown."""
     try:
@@ -160,4 +176,4 @@ def get_job(job_id: str, db: DynamoClient = Depends(get_db)) -> dict:
     job = db.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="job not found")
-    return job
+    return _presign_job_artifact(job)

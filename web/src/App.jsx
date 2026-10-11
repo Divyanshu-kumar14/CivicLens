@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Command, Download, ListChecks, Map as MapIcon, Search, UploadCloud } from 'lucide-react';
+import { Command, Download, FlaskConical, ListChecks, Map as MapIcon, Search, UploadCloud } from 'lucide-react';
 import {
   exportCSV,
   fetchJob,
@@ -20,6 +20,7 @@ import { MeshBackground } from './components/ui/mesh.jsx';
 // Below-fold views load on demand — Map + rail stay in the initial chunk.
 // Command palette is also lazy: 0KB until the user hits Cmd+K.
 const ReviewQueue = lazy(() => import('./components/Queue/ReviewQueue.jsx'));
+const MethodView = lazy(() => import('./components/Method/MethodView.jsx'));
 const TicketDrawer = lazy(() => import('./components/Ticket/TicketDrawer.jsx'));
 const JobProgress = lazy(() => import('./components/Upload/JobProgress.jsx'));
 const UploadZone = lazy(() => import('./components/Upload/UploadZone.jsx'));
@@ -50,6 +51,43 @@ const MOCK_TICKETS = [
 const SEV_PRESET = { low: 25, med: 55, high: 85 };
 const ALL_ON = new Set(['filed', 'pending', 'dismissed']);
 
+// Parse an uploaded GPS companion into a drawable track. CSV rows are
+// t,lat,lon[,speed] (header tolerated); SRT/text contributes any plausible
+// lat,lon pair. Capped at 400 points. Null when unusable — map hides it.
+async function parseTrackFile(file) {
+  if (!file) return null;
+  let text = '';
+  try {
+    text = await file.text();
+  } catch {
+    return null;
+  }
+  const pts = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/(-?\d+\.\d+)\s*[,;]\s*(-?\d+\.\d+)/);
+    if (!m) continue;
+    // Disambiguate t,lat,lon rows (three+ numbers) from bare pairs.
+    const all = line.match(/-?\d+(?:\.\d+)?/g) || [];
+    let lat, lon;
+    if (all.length >= 3) {
+      lat = Number(all[all.length - 2]);
+      lon = Number(all[all.length - 1]);
+    } else {
+      lat = Number(m[1]);
+      lon = Number(m[2]);
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    if (Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+    // Reject swapped pairs (Bengaluru is ~13N, 77E).
+    if (Math.abs(lat) > 60 && Math.abs(lon) < 60) [lat, lon] = [lon, lat];
+    if (Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+    pts.push([lat, lon]);
+  }
+  if (pts.length < 2) return null;
+  const stride = Math.ceil(pts.length / 400);
+  return pts.filter((_, i) => i % stride === 0);
+}
+
 // Sample review entries: shown only when the live API returns zero pending
 // tickets, so the Queue section (and its approve/dismiss flow) is never an
 // empty room during demos. Client-side only — overrides apply locally (see
@@ -74,6 +112,7 @@ const VIEWS = [
   { id: 'map', label: 'Map', icon: MapIcon },
   { id: 'queue', label: 'Queue', icon: ListChecks },
   { id: 'upload', label: 'Upload', icon: UploadCloud },
+  { id: 'method', label: 'Method', icon: FlaskConical },
 ];
 
 export default function App() {
@@ -89,6 +128,7 @@ export default function App() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null); // 0..1 while posting
   const [uploadError, setUploadError] = useState('');
+  const [routeTrack, setRouteTrack] = useState(null); // parsed GPS of last upload
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -180,6 +220,9 @@ export default function App() {
     setUploadProgress(0);
     setUploadError('');
     try {
+      // Parse the companion track first (client-side, instant): the map draws
+      // the surveyed route behind the pins it produced.
+      setRouteTrack(await parseTrackFile(gps));
       const created = await uploadJob({ video, gps }, { onProgress: setUploadProgress });
       const fresh = await fetchJob(created.job_id);
       setJob(fresh);
@@ -318,6 +361,7 @@ export default function App() {
             selectedId={selectedId}
             statusFilter={statusFilter}
             onToggleStatus={toggleStatus}
+            routeTrack={routeTrack}
           />
         )}
         {view === 'queue' && (
@@ -356,6 +400,7 @@ export default function App() {
             />
           </div>
         )}
+        {view === 'method' && <MethodView stats={stats} />}
           </motion.div>
         </AnimatePresence>
         <AnimatePresence initial={false}>
