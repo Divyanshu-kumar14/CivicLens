@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Check, ClipboardCopy, X } from 'lucide-react';
 import { colorFor } from '../../utils/severity.js';
 import { prettySignalKey, prettyTicketId } from '../../utils/labels.js';
+import { useAddresses } from '../../utils/reverseGeocode.js';
 import FrameStrip from './FrameStrip.jsx';
 import SeverityBar from './SeverityBar.jsx';
 import TraceTimeline from './TraceTimeline.jsx';
@@ -18,7 +19,11 @@ const STATUS_BADGE = { filed: 'filed', pending: 'review', dismissed: 'dismissed'
 // Spring entry via AnimatePresence boundary in App (Emil: never scale-from-0).
 export default function TicketDrawer({ ticket, onClose, onOverride }) {
   const [editSev, setEditSev] = useState(null);
+  // Hooks before the early return — ticket is never null when rendered
+  // (App gates on `selected`), but conditional hooks break render order.
+  const addrs = useAddresses(ticket ? [ticket] : []);
   if (!ticket) return null;
+  const street = addrs[ticket.ticket_id];
   const signals = ticket.signals || {};
 
   const copyWebhookJSON = () => {
@@ -98,12 +103,17 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
         }).map(([k, v]) => (
           <Card key={k} className="p-2.5">
             <div className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">{prettySignalKey(k)}</div>
-            <div className="font-display mt-0.5 text-[17px] font-bold tabular-nums">{v ?? '—'}</div>
+            {/* Damage area is a 0–100 index, not meters — say so inline. */}
+            <div className="font-display mt-0.5 text-[17px] font-bold tabular-nums">
+              {v ?? '—'}
+              {k === 'area_norm' && v != null && <span className="text-xs font-semibold text-slate-500">/100</span>}
+            </div>
           </Card>
         ))}
       </div>
 
       <div className="text-xs tabular-nums text-slate-400">
+        {street && <div className="mb-0.5 text-[13px] font-semibold text-slate-200">{street}</div>}
         {ticket.centroid?.[0]?.toFixed(5)}, {ticket.centroid?.[1]?.toFixed(5)}
         {ticket.created_at ? ` · ${ticket.created_at}` : ''}
       </div>
