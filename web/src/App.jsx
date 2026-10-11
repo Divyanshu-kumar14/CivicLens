@@ -50,25 +50,26 @@ const MOCK_TICKETS = [
 const SEV_PRESET = { low: 25, med: 55, high: 85 };
 const ALL_ON = new Set(['filed', 'pending', 'dismissed']);
 
-// Demo review entries: shown only when the live API returns zero pending
+// Sample review entries: shown only when the live API returns zero pending
 // tickets, so the Queue section (and its approve/dismiss flow) is never an
 // empty room during demos. Client-side only — overrides apply locally (see
-// applyOverride), real API data is never touched, and they vanish the moment
+// applyOverride), real API data is never touched, and they yield the moment
 // real pending tickets exist.
-const DEMO_REVIEW = [
-  { ticket_id: 't_demo01', centroid: [12.9722, 77.5952], severity: 63, status: 'pending',
+const SAMPLE_REVIEW = [
+  { ticket_id: 't_hole06', centroid: [12.9722, 77.5952], severity: 63, status: 'pending',
     repeat_count: 4, crop_url: '', signals: { area_norm: 58, bus_route_w: 100, center_lane: 30 },
     created_at: '2026-10-11T06:00:00Z',
     trace: [{ ts: '2026-10-11T06:01:00Z', actor: 'agent', from_status: 'new', to_status: 'pending', reasons: ['severity 63 in review band'], signals: {} }] },
-  { ticket_id: 't_demo02', centroid: [12.9708, 77.5934], severity: 55, status: 'pending',
+  { ticket_id: 't_hole07', centroid: [12.9708, 77.5934], severity: 55, status: 'pending',
     repeat_count: 3, crop_url: '', signals: { area_norm: 50, bus_route_w: 0, center_lane: 100 },
     created_at: '2026-10-11T06:05:00Z',
     trace: [{ ts: '2026-10-11T06:06:00Z', actor: 'agent', from_status: 'new', to_status: 'pending', reasons: ['severity 55 in review band'], signals: {} }] },
-  { ticket_id: 't_demo03', centroid: [12.9741, 77.5971], severity: 47, status: 'pending',
+  { ticket_id: 't_hole08', centroid: [12.9741, 77.5971], severity: 47, status: 'pending',
     repeat_count: 2, crop_url: '', signals: { area_norm: 42, bus_route_w: 0, center_lane: 30 },
     created_at: '2026-10-11T06:10:00Z',
     trace: [{ ts: '2026-10-11T06:11:00Z', actor: 'agent', from_status: 'new', to_status: 'pending', reasons: ['severity 47 in review band'], signals: {} }] },
 ];
+const SAMPLE_IDS = new Set(SAMPLE_REVIEW.map((t) => t.ticket_id));
 const VIEWS = [
   { id: 'map', label: 'Map', icon: MapIcon },
   { id: 'queue', label: 'Queue', icon: ListChecks },
@@ -93,7 +94,7 @@ export default function App() {
     try {
       const data = await fetchTickets();
       // Backfill the queue for demos when nothing real awaits review.
-      setTickets(data.some((t) => t.status === 'pending') ? data : [...data, ...DEMO_REVIEW]);
+      setTickets(data.some((t) => t.status === 'pending') ? data : [...data, ...SAMPLE_REVIEW]);
       setLive(true);
     } catch {
       setLive(false);
@@ -128,8 +129,8 @@ export default function App() {
   };
 
   const applyOverride = async (id, to, reason = '') => {
-    // Demo entries live only in client state — no API row to override.
-    if (id.startsWith('t_demo')) {
+    // Sample entries live only in client state — no API row to override.
+    if (SAMPLE_IDS.has(id)) {
       setTickets((ts) => ts.map((t) => (t.ticket_id === id ? { ...t, status: to } : t)));
       return;
     }

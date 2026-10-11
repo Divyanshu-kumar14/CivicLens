@@ -15,11 +15,11 @@ details live on each file page:
   https://commons.wikimedia.org/wiki/File:Baches.jpg
 - t_hole05.jpg — File:Bache grande 1.jpg
   https://commons.wikimedia.org/wiki/File:Bache_grande_1.jpg
-- t_demo01.jpg — File:Bache en pavimento2.jpg
+- t_hole06.jpg — File:Bache en pavimento2.jpg
   https://commons.wikimedia.org/wiki/File:Bache_en_pavimento2.jpg
-- t_demo02.jpg — File:BACHES 2.jpg
+- t_hole07.jpg — File:BACHES 2.jpg
   https://commons.wikimedia.org/wiki/File:BACHES_2.jpg
-- t_demo03.jpg — File:Bache pequeño.jpg
+- t_hole08.jpg — File:Bache pequeño.jpg
   https://commons.wikimedia.org/wiki/File:Bache_peque%C3%B1o.jpg
 
 Resized to max 640px width for demo weight. If you use any of these
