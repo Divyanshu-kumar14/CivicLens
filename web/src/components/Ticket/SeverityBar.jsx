@@ -12,8 +12,9 @@ function barColor(severity) {
 export default function SeverityBar({ severity = 0, compact = false }) {
   const [scale, setScale] = useState(0);
   useEffect(() => {
+    // Normalize FIRST, then clamp: min(1, sev)/100 pinned every bar to ~1%.
     const t = requestAnimationFrame(() =>
-      setScale(Math.min(1, Math.max(0, severity)) / 100),
+      setScale(Math.min(1, Math.max(0, severity) / 100)),
     );
     return () => cancelAnimationFrame(t);
   }, [severity]);
