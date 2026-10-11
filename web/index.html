@@ -8,6 +8,25 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Boot probe: a blank page must never be silent. Collects load/render
+      // errors; if nothing rendered after 6s, shows what was captured (or
+      // points at a stale cached bundle).
+      window.__cl_errors = [];
+      window.addEventListener('error', function (e) {
+        window.__cl_errors.push(String((e && e.message) || 'unknown error'));
+      });
+      setTimeout(function () {
+        var root = document.getElementById('root');
+        if (root && root.childElementCount === 0) {
+          var msg = window.__cl_errors.length
+            ? window.__cl_errors.join('; ')
+            : 'no error captured — likely a stale cached bundle. Hard-refresh (Ctrl+Shift+R).';
+          root.innerHTML = '<div style="background:#0b0e14;color:#e9edf3;font-family:sans-serif;padding:40px;max-width:640px">'
+            + '<h2>Startup failed</h2><p>' + msg.replace(/</g, '&lt;') + '</p></div>';
+        }
+      }, 6000);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
