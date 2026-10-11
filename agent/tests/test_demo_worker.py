@@ -78,3 +78,28 @@ def test_demo_worker_without_gps_uses_fallback(tmp_path):
                                  "gps_url": ""})
     assert db.statuses["j-nogps"][0] == "completed"
     assert counts["raw"] > 0
+
+
+def test_bright_paint_ignored_not_detected(tmp_path):
+    """Regression guard for the 1-hole→27-tickets failure: bright markings
+    (lane paint) must not become detections; only the dark hole counts."""
+    import cv2
+
+    video = tmp_path / "paint.mp4"
+    gps = tmp_path / "paint.csv"
+    writer = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"mp4v"),
+                             5, (320, 240))
+    for i in range(10):
+        frame = np.full((240, 320, 3), 150, dtype=np.uint8)
+        cv2.rectangle(frame, (20, 100 + i), (300, 130 + i), (235, 235, 235), -1)
+        writer.write(frame)
+    writer.release()
+    gps.write_text("t,lat,lon\n" + "\n".join(
+        f"{i / 5:.1f},12.970000,77.594600" for i in range(10)) + "\n")
+    db, s3 = FakeDB(), FakeS3()
+    worker = DemoWorker(config={"severity": {}, "dedup": {}}, db=db, s3=s3)
+    counts = worker.process_job({"job_id": "j-paint", "video_url": str(video),
+                                 "gps_url": str(gps)})
+    assert db.statuses["j-paint"][0] == "completed"
+    assert counts["raw"] == 0
+    assert counts["clusters"] == 0

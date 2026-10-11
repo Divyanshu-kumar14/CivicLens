@@ -39,8 +39,13 @@ except ImportError:  # pragma: no cover - packaging fallback
 
 SAMPLE_FPS = 2.0
 MAX_WIDTH = 960
-MAX_BOXES_PER_FRAME = 3
-MIN_AREA_PX = 500
+MAX_BOXES_PER_FRAME = 2
+# 2000px @960px wide: specks, paint chips, and compression noise fall out.
+# (Shared default is 500px — tuned for YOLO-fusion, too loose standalone.)
+MIN_AREA_PX = 2000
+# Potholes read darker than the surrounding road; bright lane paint and pale
+# patches do not. Kept boxes must beat the frame median by this margin.
+DARK_MARGIN = 12.0
 WARD_FALLBACK = (12.9685, 77.5985)  # ward center (matches web map default)
 
 
@@ -119,7 +124,13 @@ class DemoWorker(BatchWorker):
                 if w > MAX_WIDTH:
                     frame = cv2.resize(frame, (MAX_WIDTH, round(MAX_WIDTH * h / w)))
                     h, w = frame.shape[:2]
-                for b in canny_contours(frame, min_area=MIN_AREA_PX)[:MAX_BOXES_PER_FRAME]:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                road_med = float(np.median(gray))
+                for b in canny_contours(gray, min_area=MIN_AREA_PX)[:MAX_BOXES_PER_FRAME]:
+                    x, y, bw, bh = b["x"], b["y"], b["w"], b["h"]
+                    roi = gray[y:y + bh, x:x + bw]
+                    if roi.size == 0 or float(roi.mean()) > road_med - DARK_MARGIN:
+                        continue  # brighter than road: paint, patch, sky
                     x, y, bw, bh = b["x"], b["y"], b["w"], b["h"]
                     pad = 0.1
                     x0, y0 = max(0, int(x - bw * pad)), max(0, int(y - bh * pad))
@@ -151,8 +162,11 @@ class DemoWorker(BatchWorker):
                 return g.lat, g.lon
             except Exception:
                 pass
-        # No usable GPS: ward-center fallback, spread so pins don't stack.
-        return WARD_FALLBACK[0] + (n % 5) * 0.0004, WARD_FALLBACK[1] + (n // 5) * 0.0004
+        # No usable GPS: ward-center fallback, spread tightly (~3m grid) so
+        # pins don't perfectly stack BUT stay inside the 15m dedup eps and
+        # merge into one ticket. (The old 44m grid defeated dedup: 1 hole in,
+        # 27 tickets out — the exact failure on the live box.)
+        return WARD_FALLBACK[0] + (n % 3) * 0.00003, WARD_FALLBACK[1] + (n // 3 % 3) * 0.00003
 
 
 if __name__ == "__main__":
