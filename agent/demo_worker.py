@@ -29,10 +29,11 @@ from agent.worker import BatchWorker
 log = logging.getLogger("civiclens.demo_worker")
 
 try:
-    # Local dev / tests: full repo on sys.path.
+    # Local dev / tests: full repo on sys.path. Agent image: minimal torch-free
+    # vision package (see infra/Dockerfile.agent) — same import path both places.
     from vision.classical import canny_contours
     from vision.gps import interpolate_gps, parse_gps_csv, parse_gps_srt
-except ImportError:  # agent image: flat copies (see infra/Dockerfile.agent)
+except ImportError:  # pragma: no cover - packaging fallback
     from cv_classical import canny_contours
     from gps_util import interpolate_gps, parse_gps_csv, parse_gps_srt
 
