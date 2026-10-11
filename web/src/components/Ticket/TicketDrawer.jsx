@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { colorFor } from '../../utils/severity.js';
 import FrameStrip from './FrameStrip.jsx';
 import SeverityBar from './SeverityBar.jsx';
@@ -25,7 +26,16 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
   };
 
   return (
-    <aside className="cl-drawer" aria-label={`Ticket ${ticket.ticket_id}`}>
+    // Spring entry (Emil: entering elements ease-out with presence, never from
+    // scale(0)); exit is handled by the AnimatePresence boundary in App.
+    <motion.aside
+      className="cl-drawer"
+      aria-label={`Ticket ${ticket.ticket_id}`}
+      initial={{ x: 56, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: 56, opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+    >
       <button className="btn-ghost" onClick={onClose}>← Close</button>
       <h3>{ticket.ticket_id}</h3>
       <div className="cl-statusline">
@@ -79,6 +89,6 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
         </label>
       </div>
       <TraceTimeline trace={ticket.trace} />
-    </aside>
+    </motion.aside>
   );
 }

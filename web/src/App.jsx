@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   exportCSV,
   fetchJob,
@@ -190,7 +191,14 @@ export default function App() {
           <nav className="cl-tabs" role="tablist" aria-label="Views">
             {['map', 'queue', 'upload'].map((v) => (
               <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}>
-                {v[0].toUpperCase() + v.slice(1)}
+                {view === v && (
+                  <motion.span
+                    layoutId="ws-pill"
+                    className="ws-pill"
+                    transition={{ type: 'spring', stiffness: 520, damping: 36 }}
+                  />
+                )}
+                <span>{v[0].toUpperCase() + v.slice(1)}</span>
               </button>
             ))}
           </nav>
@@ -202,6 +210,15 @@ export default function App() {
       <div className="cl-shell">
         <StatsRail stats={stats} />
         <Suspense fallback={<div style={{ flex: 1, padding: 20 }}>Loading…</div>}>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={view}
+            initial={{ opacity: 0, x: 14 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -14 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            style={{ flex: 1, display: 'flex', minWidth: 0, minHeight: 0 }}
+          >
         {view === 'map' && (
           <MapView
             tickets={tickets}
@@ -245,6 +262,9 @@ export default function App() {
             />
           </div>
         )}
+          </motion.div>
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
         {selected && (
           <ErrorBoundary message="The ticket drawer crashed. Try another pin.">
             <TicketDrawer
@@ -254,6 +274,7 @@ export default function App() {
             />
           </ErrorBoundary>
         )}
+        </AnimatePresence>
         </Suspense>
       </div>
       <div className="cl-uploadbar">
