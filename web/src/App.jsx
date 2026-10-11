@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Command, Download, ListChecks, Map as MapIcon, Search, UploadCloud } from 'lucide-react';
 import {
   exportCSV,
   fetchJob,
@@ -12,12 +13,17 @@ import MapView from './components/Map/MapView.jsx';
 import Clock from './components/Clock.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import StatsRail from './components/Stats/StatsRail.jsx';
+import { Badge } from './components/ui/badge.jsx';
+import { Button } from './components/ui/button.jsx';
+import { MeshBackground } from './components/ui/mesh.jsx';
 
 // Below-fold views load on demand — Map + rail stay in the initial chunk.
+// Command palette is also lazy: 0KB until the user hits Cmd+K.
 const ReviewQueue = lazy(() => import('./components/Queue/ReviewQueue.jsx'));
 const TicketDrawer = lazy(() => import('./components/Ticket/TicketDrawer.jsx'));
 const JobProgress = lazy(() => import('./components/Upload/JobProgress.jsx'));
 const UploadZone = lazy(() => import('./components/Upload/UploadZone.jsx'));
+const CommandPalette = lazy(() => import('./components/ui/command.jsx'));
 
 // Mock fallback: shown when the API is unreachable.
 const MOCK_TICKETS = [
@@ -43,6 +49,11 @@ const MOCK_TICKETS = [
 
 const SEV_PRESET = { low: 25, med: 55, high: 85 };
 const ALL_ON = new Set(['filed', 'pending', 'dismissed']);
+const VIEWS = [
+  { id: 'map', label: 'Map', icon: MapIcon },
+  { id: 'queue', label: 'Queue', icon: ListChecks },
+  { id: 'upload', label: 'Upload', icon: UploadCloud },
+];
 
 export default function App() {
   const [tickets, setTickets] = useState(MOCK_TICKETS);
@@ -55,6 +66,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState(new Set(ALL_ON));
   const [job, setJob] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -70,6 +82,18 @@ export default function App() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // Global Cmd+K / Ctrl+K for the action search bar (Kokonut-style).
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const selected = tickets.find((t) => t.ticket_id === selectedId) || null;
 
@@ -171,43 +195,65 @@ export default function App() {
   }, [tickets, live]);
 
   return (
-    <>
-      <header className="cl-header">
-        <span className="cl-brand">
-          <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
-            <rect width="32" height="32" rx="7" fill="#151b26" stroke="rgba(255,255,255,0.12)" />
-            <circle cx="16" cy="16" r="6.5" fill="none" stroke="#ff5252" strokeWidth="2.5" />
-            <circle cx="16" cy="16" r="2.4" fill="#ff5252" />
-          </svg>
-          <span className="wordmark">CivicLens</span>
+    <div className="relative flex h-full flex-col bg-[#060709] font-sans text-slate-100 antialiased">
+      <MeshBackground />
+      {/* Premium glass header: brand + live badge + search trigger + workspace tabs */}
+      <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/8 bg-[rgba(10,12,17,0.85)] px-4 backdrop-blur-xl">
+        <span className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/12 bg-[#151b26] shadow-[0_0_16px_rgba(255,82,82,0.25)]">
+            <span className="h-3.5 w-3.5 rounded-full border-[2.5px] border-[#ff5252]" />
+          </span>
+          <span className="font-display text-[17px] font-bold tracking-tight">CivicLens</span>
         </span>
-        <span className="cl-ward">ward-12-demo</span>
-        <span className="cl-ward" title={live ? 'Connected to the API' : 'API unreachable — showing mock data'}>
-          <span className={`cl-live-dot${live ? '' : ' off'}`} />
+        <Badge variant="muted" className="hidden sm:inline-flex">ward-12-demo</Badge>
+        <Badge variant={live ? 'live' : 'demo'} title={live ? 'Connected to the API' : 'API unreachable — showing mock data'}>
+          <span className={`h-1.5 w-1.5 rounded-full ${live ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-amber-400 shadow-[0_0_8px_#ffb020]'}`} />
           {live ? 'Live' : 'Demo mode'}
-        </span>
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+        </Badge>
+        <span className="ml-auto flex items-center gap-2">
           <Clock />
-          <nav className="cl-tabs" role="tablist" aria-label="Views">
-            {['map', 'queue', 'upload'].map((v) => (
-              <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}>
-                {view === v && (
-                  <motion.span
-                    layoutId="ws-pill"
-                    className="ws-pill"
-                    transition={{ type: 'spring', stiffness: 520, damping: 36 }}
-                  />
-                )}
-                <span>{v[0].toUpperCase() + v.slice(1)}</span>
-              </button>
-            ))}
-          </nav>
-          <button className="btn-ghost" onClick={() => downloadCSV('filed')}>
-            Export CSV
+          {/* Action search trigger (Kokonut-style): the "expensive" entry point */}
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="hidden h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-[13px] text-slate-400 transition-colors hover:border-white/20 hover:text-slate-200 md:flex"
+            title="Search tickets and actions"
+          >
+            <Search size={14} />
+            <span>Search…</span>
+            <kbd className="rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">⌘K</kbd>
           </button>
+          <nav className="flex gap-0.5 rounded-xl border border-white/10 bg-black/50 p-0.5" role="tablist" aria-label="Views">
+            {VIEWS.map((v) => {
+              const Icon = v.icon;
+              const active = view === v.id;
+              return (
+                <button
+                  key={v.id}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setView(v.id)}
+                  className={`relative flex items-center gap-1.5 rounded-[10px] px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${active ? 'text-[#061014]' : 'text-slate-400 hover:text-white'}`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="ws-pill"
+                      className="absolute inset-0 rounded-[10px] bg-cyan-300 shadow-[0_2px_14px_rgba(58,226,255,0.35)]"
+                      transition={{ type: 'spring', stiffness: 520, damping: 36 }}
+                    />
+                  )}
+                  <Icon size={14} className="relative z-10" />
+                  <span className="relative z-10">{v.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          <Button variant="ghost" size="sm" onClick={() => downloadCSV('filed')}>
+            <Download />
+            <span className="hidden lg:inline">Export CSV</span>
+          </Button>
         </span>
       </header>
-      <div className="cl-shell">
+      <div className="cl-shell relative z-10">
         <StatsRail stats={stats} />
         <Suspense fallback={<div style={{ flex: 1, padding: 20 }}>Loading…</div>}>
         <AnimatePresence mode="wait" initial={false}>
@@ -277,9 +323,21 @@ export default function App() {
         </AnimatePresence>
         </Suspense>
       </div>
-      <div className="cl-uploadbar">
+      <div className="relative z-10 flex h-[34px] shrink-0 items-center gap-2 border-t border-white/8 bg-[rgba(10,12,17,0.85)] px-4 text-xs tabular-nums text-slate-500 backdrop-blur-xl">
+        <Command size={12} className="text-slate-600" />
         {job ? `Job ${job.job_id?.slice(0, 8)} — ${job.status}` : 'No active job — Upload tab to process a route'}
+        <span className="ml-auto hidden sm:inline">⌘K for actions · A approve · D dismiss</span>
       </div>
-    </>
+      <Suspense fallback={null}>
+        <CommandPalette
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          tickets={tickets}
+          onOpenTicket={(id) => { setView('map'); openTicket(id); }}
+          onGoto={setView}
+          onExport={() => downloadCSV('filed')}
+        />
+      </Suspense>
+    </div>
   );
 }

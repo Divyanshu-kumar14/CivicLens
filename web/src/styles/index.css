@@ -1,4 +1,4 @@
-/* CivicLens — Hyprland-style ops console.
+/* CivicLens — Hyprland-style ops console + shadcn/Tailwind premium layer.
    Near-black translucent tiles, hairline borders, one electric accent.
    Severity colors are semantic and never redecorated. */
 @import '@fontsource/space-grotesk/latin-500.css';
@@ -7,6 +7,17 @@
 @import '@fontsource/inter/latin-500.css';
 @import '@fontsource/inter/latin-600.css';
 @import '@fontsource/inter/latin-700.css';
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --color-ink: #eef1f6;
+  --color-accent: #3ae2ff;
+  --color-filed: #ff5252;
+  --color-review: #ffb020;
+  --color-ok: #34d399;
+}
 
 :root {
   --bg: #060709;

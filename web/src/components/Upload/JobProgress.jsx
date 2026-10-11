@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
+import { Card } from '../ui/card.jsx';
+import { Progress } from '../ui/primitives.jsx';
 
 // Queued -> Processing -> N detections -> M tickets. Polls GET /jobs/{id} every 2s.
+// Premium skin: glass card + animated progress. Polling logic untouched.
 export default function JobProgress({ job, fetchJob, onUpdate, onDone }) {
   useEffect(() => {
     if (!job || job.status === 'completed' || job.status === 'failed') return;
@@ -27,11 +30,9 @@ export default function JobProgress({ job, fetchJob, onUpdate, onDone }) {
         : `${job.status}… ${pct}%`;
 
   return (
-    <div className="cl-job">
-      <div><b>{job.job_id?.slice(0, 8)}</b> — {label}</div>
-      <div className="cl-jobbar">
-        <div style={{ transform: `scaleX(${pct / 100})` }} />
-      </div>
-    </div>
+    <Card className="mx-3.5 mb-3.5 p-3.5 text-[13px] tabular-nums">
+      <div><b className="font-display">{job.job_id?.slice(0, 8)}</b> — {label}</div>
+      <Progress value={pct / 100} className="mt-2" />
+    </Card>
   );
 }
