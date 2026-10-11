@@ -4,8 +4,10 @@ import { CircleMarker, MapContainer, Marker, Popup, TileLayer, Tooltip } from 'r
 import { colorFor } from '../../utils/severity.js';
 import { prettyStatus, prettyTicketId } from '../../utils/labels.js';
 
-// Demo ward center (matches API sample coords).
-export const DEFAULT_CENTER = [12.9716, 77.5946];
+import { useAddresses } from '../../utils/reverseGeocode.js';
+
+// Demo ward center (mean of the spread ticket locations).
+export const DEFAULT_CENTER = [12.9685, 77.5985];
 
 const STATUS_LABEL = { filed: 'Filed', pending: 'Review', dismissed: 'Dismissed' };
 
@@ -63,9 +65,13 @@ export default function MapView({
     return c;
   }, [tickets]);
 
+  // Street addresses resolve lazily (cached) — tooltips upgrade from raw
+  // coordinates to "Road, Area" as lookups land.
+  const addrs = useAddresses(visible);
+
   return (
     <div className="cl-mapwrap">
-      <MapContainer center={DEFAULT_CENTER} zoom={14} scrollWheelZoom>
+      <MapContainer center={DEFAULT_CENTER} zoom={13} scrollWheelZoom>
         <TileLayer
           attribution="&copy; OpenStreetMap contributors"
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -89,7 +95,10 @@ export default function MapView({
             eventHandlers={{ click: () => onPinClick(t.ticket_id) }}
           >
             <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
-              {prettyTicketId(t.ticket_id)} · {t.severity} ({prettyStatus(t.status)})
+              <div className="font-semibold">{prettyTicketId(t.ticket_id)} · {t.severity} ({prettyStatus(t.status)})</div>
+              <div className="text-[11px] text-slate-400">
+                {addrs[t.ticket_id] || `${t.centroid?.[0]?.toFixed(4)}, ${t.centroid?.[1]?.toFixed(4)}`}
+              </div>
             </Tooltip>
             <Popup>
               {prettyTicketId(t.ticket_id)} — severity {t.severity} ({prettyStatus(t.status)})

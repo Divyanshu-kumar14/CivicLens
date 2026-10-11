@@ -56,15 +56,15 @@ const ALL_ON = new Set(['filed', 'pending', 'dismissed']);
 // applyOverride), real API data is never touched, and they yield the moment
 // real pending tickets exist.
 const SAMPLE_REVIEW = [
-  { ticket_id: 't_hole06', centroid: [12.9722, 77.5952], severity: 63, status: 'pending',
+  { ticket_id: 't_hole06', centroid: [12.983, 77.6], severity: 63, status: 'pending',
     repeat_count: 4, crop_url: '', signals: { area_norm: 58, bus_route_w: 100, center_lane: 30 },
     created_at: '2026-10-11T06:00:00Z',
     trace: [{ ts: '2026-10-11T06:01:00Z', actor: 'agent', from_status: 'new', to_status: 'pending', reasons: ['severity 63 in review band'], signals: {} }] },
-  { ticket_id: 't_hole07', centroid: [12.9708, 77.5934], severity: 55, status: 'pending',
+  { ticket_id: 't_hole07', centroid: [12.956, 77.585], severity: 55, status: 'pending',
     repeat_count: 3, crop_url: '', signals: { area_norm: 50, bus_route_w: 0, center_lane: 100 },
     created_at: '2026-10-11T06:05:00Z',
     trace: [{ ts: '2026-10-11T06:06:00Z', actor: 'agent', from_status: 'new', to_status: 'pending', reasons: ['severity 55 in review band'], signals: {} }] },
-  { ticket_id: 't_hole08', centroid: [12.9741, 77.5971], severity: 47, status: 'pending',
+  { ticket_id: 't_hole08', centroid: [12.9719, 77.61], severity: 47, status: 'pending',
     repeat_count: 2, crop_url: '', signals: { area_norm: 42, bus_route_w: 0, center_lane: 30 },
     created_at: '2026-10-11T06:10:00Z',
     trace: [{ ts: '2026-10-11T06:11:00Z', actor: 'agent', from_status: 'new', to_status: 'pending', reasons: ['severity 47 in review band'], signals: {} }] },
