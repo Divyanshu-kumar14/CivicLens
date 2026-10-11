@@ -7,9 +7,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY agent/ ./agent/
 COPY config.yaml ./config.yaml
+# Demo worker's classical CV path (agent/demo_worker.py): flat copies of two
+# torch-free vision modules so the agent image stays lean (no ultralytics).
+COPY vision/classical.py ./cv_classical.py
+COPY vision/gps.py ./gps_util.py
 
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-CMD ["gunicorn", "agent.main:app", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "agent.main:app", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "300", "--graceful-timeout", "60"]

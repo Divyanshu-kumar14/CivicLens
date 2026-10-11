@@ -36,12 +36,19 @@ export const overrideTicket = (id, payload) =>
 export const fetchJob = (id) => api.get(`/jobs/${id}`).then((r) => r.data);
 export const createJob = (payload) => api.post('/jobs', payload).then((r) => r.data);
 // UploadZone path: { video: File, gps?: File, ward?: string } -> multipart /jobs/upload
-export const uploadJob = ({ video, gps, ward = 'ward-12-demo' }) => {
+// Phone videos over long links need minutes, not the shared 15s API timeout —
+// this call carries its own 10-minute budget plus an optional progress tap.
+export const uploadJob = ({ video, gps, ward = 'ward-12-demo' }, { timeout = 600000, onProgress } = {}) => {
   const form = new FormData();
   form.append('video', video);
   if (gps) form.append('gps', gps);
   form.append('ward', ward);
-  return api.post('/jobs/upload', form).then((r) => r.data);
+  return api.post('/jobs/upload', form, {
+    timeout,
+    onUploadProgress: onProgress
+      ? (e) => { if (e.total) onProgress(e.loaded / e.total); }
+      : undefined,
+  }).then((r) => r.data);
 };
 export const exportCSV = (status = 'filed') =>
   api.get('/export.csv', { params: { status }, responseType: 'blob' });

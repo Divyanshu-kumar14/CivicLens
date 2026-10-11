@@ -9,7 +9,9 @@ const MAX_BYTES = 2 * 1024 ** 3; // 2GB, mirrors API intake limit
 // Drag-and-drop for .mp4 + .csv/.srt. Validates, then hands files up.
 // Premium skin: glass dropzone + AnimatedBeam pipeline strip showing
 // Scout → Vision → Triage → Filed before the user ever uploads.
-export default function UploadZone({ onSubmit, busy }) {
+// `progress` (0..1) drives the determinate upload bar; `serverError` shows
+// the API failure instead of silently resetting to "Start job".
+export default function UploadZone({ onSubmit, busy, progress = null, serverError = '' }) {
   const [video, setVideo] = useState(null);
   const [gps, setGps] = useState(null);
   const [error, setError] = useState('');
@@ -89,6 +91,24 @@ export default function UploadZone({ onSubmit, busy }) {
           </span>
         </div>
         {error && <div className="mt-2 text-[13px] text-[#ff7a7a]" role="alert">{error}</div>}
+        {serverError && (
+          <div className="mx-auto mt-3 max-w-md rounded-xl border border-[rgba(255,82,82,0.4)] bg-[rgba(255,82,82,0.08)] px-3 py-2 text-[13px] text-[#ff9a9a]" role="alert">
+            Upload failed: {serverError}
+          </div>
+        )}
+        {progress != null && (
+          <div className="mx-auto mt-3 max-w-md" role="status" aria-label="Upload progress">
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-cyan-300 transition-transform duration-200 origin-left"
+                style={{ transform: `scaleX(${Math.min(1, Math.max(0, progress))})` }}
+              />
+            </div>
+            <div className="mt-1 text-xs tabular-nums text-slate-400">
+              Uploading… {Math.round(progress * 100)}%
+            </div>
+          </div>
+        )}
         <div className="mt-4">
           <ShimmerButton
             disabled={busy || !video}
