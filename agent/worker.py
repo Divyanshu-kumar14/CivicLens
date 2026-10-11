@@ -136,7 +136,12 @@ class BatchWorker:
             import urllib.request
 
             if uri.startswith(("http://", "https://")):
-                urllib.request.urlretrieve(uri, local_path)
+                # Bounded fetch (30s): urlretrieve() takes no timeout and a
+                # hung source would stall the single worker thread forever
+                # with no visibility. Failures mark the job failed upstream.
+                with urllib.request.urlopen(uri, timeout=30) as resp, \
+                        open(local_path, "wb") as fh:
+                    shutil.copyfileobj(resp, fh)
             else:
                 shutil.copyfile(uri, local_path)
 

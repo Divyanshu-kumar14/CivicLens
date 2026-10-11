@@ -29,7 +29,7 @@ class FakeWebhook:
     def build_payload(self, ticket):
         return {"ticket_id": ticket["ticket_id"]}
 
-    async def send(self, url, payload):
+    def send(self, url, payload):
         self.sent.append((url, payload))
         from agent.services.webhook import WebhookResult
 

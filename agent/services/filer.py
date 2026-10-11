@@ -84,11 +84,9 @@ class TicketFiler:
             ticket["trace"].append(entry)
 
         if action == "file" and self.webhook is not None and webhook_url:
-            import asyncio
-
             try:
-                asyncio.run(self.webhook.send(webhook_url,
-                                              self.webhook.build_payload(ticket)))
+                self.webhook.send(webhook_url,
+                                  self.webhook.build_payload(ticket))
             except Exception as exc:  # dead-letter, never lose the ticket
                 log.error("webhook failed for %s: %s", ticket["ticket_id"], exc)
 
@@ -114,11 +112,9 @@ class TicketFiler:
         else:
             trace = [*ticket.get("trace", []), entry]
         if to_status == "filed" and self.webhook is not None and webhook_url:
-            import asyncio
-
             try:
-                asyncio.run(self.webhook.send(webhook_url,
-                                              self.webhook.build_payload(ticket)))
+                self.webhook.send(webhook_url,
+                                  self.webhook.build_payload(ticket))
             except Exception as exc:
                 log.error("override webhook failed for %s: %s", ticket_id, exc)
         updates = {"status": to_status, "trace": trace, "updated_at": _now()}
