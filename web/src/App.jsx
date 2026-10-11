@@ -87,6 +87,8 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState(new Set(ALL_ON));
   const [job, setJob] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null); // 0..1 while posting
+  const [uploadError, setUploadError] = useState('');
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -170,14 +172,24 @@ export default function App() {
   };
 
   const submitUpload = async ({ video, gps }) => {
+    // Failures used to vanish silently (finally reset `uploading`, screen
+    // fell back to "Start job" with no message) — surface them in the zone.
+    // Stay on Upload after starting so JobProgress is visible (was: jump to
+    // map, hiding the job the user just created).
     setUploading(true);
+    setUploadProgress(0);
+    setUploadError('');
     try {
-      const created = await uploadJob({ video, gps });
+      const created = await uploadJob({ video, gps }, { onProgress: setUploadProgress });
       const fresh = await fetchJob(created.job_id);
       setJob(fresh);
-      setView('map');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      const message = Array.isArray(detail) ? detail.map((d) => d.msg).join('; ') : detail;
+      setUploadError(message || err?.message || 'Upload failed — try again.');
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -330,7 +342,12 @@ export default function App() {
         )}
         {view === 'upload' && (
           <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
-            <UploadZone onSubmit={submitUpload} busy={uploading} />
+            <UploadZone
+              onSubmit={submitUpload}
+              busy={uploading}
+              progress={uploadProgress}
+              serverError={uploadError}
+            />
             <JobProgress
               job={job}
               fetchJob={fetchJob}
