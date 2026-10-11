@@ -4,6 +4,9 @@
 export function prettyTicketId(id) {
   const m = /^t_hole0*(\d+)$/.exec(String(id || ''));
   if (m) return `Hole ${m[1].padStart(2, '0')}`;
+  // Client-side demo queue entries (see DEMO_REVIEW in App.jsx).
+  const d = /^t_demo0*(\d+)$/.exec(String(id || ''));
+  if (d) return `Demo ${d[1].padStart(2, '0')}`;
   return String(id || '').replace(/_/g, ' ');
 }
 
