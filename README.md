@@ -1,391 +1,263 @@
-# CivicLens 🔍🕳️
+# CivicLens
 
-> **Every garbage truck becomes a city inspector.**
-> Cities fix potholes weeks faster without extra patrols — the truck that already drives every street files its own tickets, with photo proof.
+Fleet dashcams file their own pothole tickets, with photo proof and a decision trace for every work order.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Stack](https://img.shields.io/badge/stack-FastAPI%20%C2%B7%20OpenCV%20%C2%B7%20React-blue)](#tech-stack)
-[![AWS](https://img.shields.io/badge/AWS-S3%20%C2%B7%20DynamoDB%20%C2%B7%20SQS-orange)](#real-aws-deploy)
-[![Evaluated](https://img.shields.io/badge/eval-dedup%208.9%C3%97%20%C2%B7%20severity%20%CF%81%3D1.00-purple)](#-evaluation)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
----
+## Overview
 
-## 👀 What is this?
+CivicLens turns existing municipal fleets (garbage trucks, sweepers, buses) into road inspectors. A dashcam plus GPS unit records the road; the pipeline detects potholes and cracks, blurs faces and plates before storage, deduplicates repeat sightings of the same hole, scores severity, and files or queues a ticket. Road crews get a prioritized, geo-located list with photo evidence instead of a patrol backlog.
 
-CivicLens turns dashcam / garbage-truck route video into **actionable road-repair tickets**:
+## Features
 
-1. 🎥 **See** — a vision pipeline watches route video, detects potholes/cracks (YOLOv8n + classical Canny fallback), blurs faces/plates, and embeds each crop.
-2. 🧠 **Think** — an agentic service dedups repeat sightings of the same hole (DBSCAN over GPS + visual similarity), scores severity 0–100, and decides: **auto-file** 🟥, **human review** 🟨, or **dismiss** ⬜.
-3. 🗺️ **Act** — road crews get a live map, a review queue, CSV exports, and HMAC-signed webhooks. Every decision carries a full **agent trace** — no black boxes.
+- Video plus GPS intake that queues work through S3 and SQS, so uploads survive restarts.
+- YOLOv8n fused with a classical Canny fallback, so confident model hits win and weak frames still get a second opinion.
+- Face and plate blurring before any crop is stored, with short raw-video retention.
+- ORB embedding plus DBSCAN dedup that compresses repeat sightings into one ticket per hole.
+- Weighted severity scoring with explicit file, review, and dismiss gates plus an arterial forced-review rule.
+- Every decision trace-logged, with human override that appends to the same trace.
+- Map, review queue, video upload, and method views with CSV export for work orders.
 
-```
-S3 raw video → SQS jobs → vision worker (decode→detect→blur→embed)
-    → DynamoDB detections + S3 crops → agent (cluster→score→file/queue)
-    → DynamoDB tickets + traces → React map / queue → CSV + webhook work orders
-```
+## Quick start
 
-📐 Full architecture: [`docs/arch_diagram.png`](docs/arch_diagram.png) · source [`docs/arch_diagram.mmd`](docs/arch_diagram.mmd) · deep-dive [`docs/report.md`](docs/report.md)
-
----
-
-## ⚡ Quick start (5 minutes, no AWS needed)
-
-> You need: **Docker + Docker Compose**, **Python 3.11+**, **Node 20+**, `make`.
+Prerequisites: Docker with Compose, Python 3.11 (per `infra/Dockerfile.*`), Node 20 (per `infra/Dockerfile.web`).
 
 ```bash
-# 1. Boot the full stack — API :8000 · web :3000 · localstack :4566 · DynamoDB :8100
+# 1. Clone and enter
+git clone https://github.com/Divyanshu-kumar14/CivicLens.git
+cd CivicLens
+
+# 2. Boot the full stack (API :8000, web :3000, LocalStack :4566, DynamoDB :8100)
 docker compose up --build
 
-# 2. Seed demo data (idempotent — safe to re-run)
+# 3. Seed demo data in a second terminal (idempotent, safe to re-run)
 make seed-demo
 
-# 3. Open the map
-open http://localhost:3000        # macOS
-# xdg-open http://localhost:3000  # Linux
+# 4. Open the map
+xdg-open http://localhost:3000
 ```
 
-**What you should see:** 5 demo tickets on a dark Leaflet map (`t_hole01`…`t_hole05`), a review queue with sample items, and an upload tab. If the API is unreachable the UI falls back to **Demo mode** (amber badge, mock data) instead of a blank screen.
+Expect the Ward 12 demo: 5 seeded tickets (filed, pending, dismissed) with severity, repeat counts, and traces. When the API returns zero pending tickets the queue shows 3 client-side sample entries so the review flow is never empty; they yield to real data and never touch the API. Eight pothole demo crops in `web/public/demo-crops/` back the ticket drawer until real S3 crops exist.
+
+## Usage
+
+Interactive API docs live at `http://localhost:8000/docs` when the stack runs.
+
+Queue a video already in object storage (JSON intake):
 
 ```bash
-# Sanity checks
-curl localhost:8000/health                 # {"status":"ok","service":"civiclens-agent"}
-curl localhost:8000/tickets | head -c 400  # seeded tickets as JSON
+curl -X POST http://localhost:8000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"video_url": "s3://civic-lens-raw/route.mp4", "gps_url": "s3://civic-lens-raw/route.csv", "ward": "ward-12-demo"}'
+# {"job_id": "<id>", "status": "queued"}
 ```
 
----
-
-## 🖥️ A tour of the app (what each screen does)
-
-| View | What it's for | Try this |
-|------|---------------|----------|
-| 🗺️ **Map** | Every ticket as a pin, colored by severity. Click a pin → photo crop, severity breakdown, agent trace. | Click the reddest pin, expand *Why this score?* |
-| 📋 **Queue** | Human review inbox (`pending` tickets). Bulk approve / dismiss, severity presets. | Select 2 rows → *Approve* → watch them turn `filed` |
-| ⬆️ **Upload** | Drop a route video + optional GPS file → new processing job with live progress. | Upload any `.mp4` + `.csv` → follow the progress bar |
-| 🔬 **Method** | Explains the pipeline + live cost/perf stats. Great for demos to non-engineers. | Press `⌘K` / `Ctrl+K` anywhere for the action palette |
-
-> 📸 **Screenshots:** capture each view and drop them in `docs/screenshots/` as `map.png`, `queue.png`, `upload.png`, `method.png` — then link them in the table above. (No screenshots are committed yet; the map works headless in CI so we don't gate merges on images.)
-
----
-
-## 🧩 How it works
-
-### 1. Vision — `vision/` (OpenCV pipeline)
-
-`video + GPS → geo-tagged detections with blurred crops + embeddings`
-
-- **Ingest** (`ingest.py`) — validates + decodes video at 2 fps sampling.
-- **GPS** (`gps.py`) — parses `.csv` / `.srt` tracks, interpolates position per frame (haversine math).
-- **Detect** (`detector.py`) — YOLOv8n (`conf 0.25`, `NMS 0.5`, min-box 24px) **fused** with a classical Canny+contour fallback. Overlap boosts confidence `+0.1`; large classical-only regions enter at `0.45`; borderline YOLO hits get a focused ROI re-check.
-- **Blur** (`blur.py`) — Haar face + plate cascades **before storage**, plus a plate edge-density fallback.
-- **Embed** (`embedder.py`) — ORB-500 mean → 128-d unit vector (inputs capped at 128px: `11.5 → 1.8 ms/crop`, identical quality).
-
-### 2. Agent — `agent/` (FastAPI triage service)
-
-`detections → clusters → severity → filed / pending / dismissed`
-
-- **Dedup** (`services/cluster.py`) — DBSCAN over a combined metric: same hole iff within `geo_eps_m` **and** embedding cosine ≥ `cos_thresh`. Measured **80 sightings → 9 tickets (8.9×, −88.8%)**.
-- **Score** (`services/scorer.py`) — weighted 0–100:
-  `0.50 × area + 0.25 × repeats + 0.15 × bus-route + 0.10 × center-lane`
-- **File** (`services/filer.py`) — the perceive → decide → act → store loop:
-
-  | Severity | Action | Ticket status |
-  |----------|--------|---------------|
-  | `≥ 70` | auto-file (+ webhook) | `filed` 🟥 |
-  | `40–69` | queue for human | `pending` 🟨 |
-  | `< 40` | dismiss | `dismissed` ⬜ |
-  | `≥ 85` **on an arterial** | forced human review (expensive repairs need eyes) | `pending` 🟨 |
-
-  Every transition is trace-logged (`agent` or `human` actor) — see `docs/report.md §6` for real JSONL examples.
-
-### 3. Web — `web/` (React + Leaflet)
-
-Dark glass UI: `MapView`, `ReviewQueue`, `UploadZone` + `JobProgress`, `TicketDrawer`, `MethodView`, `CommandPalette` (`⌘K`). Initial bundle is code-split (map + stats rail first, drawer/queue/upload lazy).
-
----
-
-## 🛠️ Commands you'll actually use
-
-| Command | What it does |
-|---------|--------------|
-| `make install` | `pip install` vision + agent deps, `npm install` web |
-| `make test` | `pytest` suites for `vision/` + `agent/` (55 passed at last check) |
-| `make seed-demo` | Pre-seed DynamoDB/S3 with 1 job + 5 tickets (localstack when `DYNAMO_ENDPOINT_URL` / `AWS_ENDPOINT_URL` are set, else real AWS) |
-| `make bench` | Stock-OpenCV throughput benchmark on the demo route |
-| `make lint` | `flake8` (Python) + `eslint` (web) |
-| `make secrets` | `gitleaks` scan, or grep fallback for `AKIA…` / `ghp_…` / `sk-live` |
-| `make clean` | Drop `__pycache__` / `*.pyc` |
+Upload from disk (multipart intake, what the web Upload view uses):
 
 ```bash
-make install && make test     # fresh clone → verified
-make bench                    # perf after touching vision/
-make secrets                  # before every push
+curl -X POST http://localhost:8000/jobs/upload \
+  -F "video=@route.mp4" \
+  -F "gps=@route.csv" \
+  -F "ward=ward-12-demo"
 ```
 
----
+Poll the job, then list tickets:
 
-## 📁 Project layout
-
-```
-vision/    OpenCV pipeline — ingest, gps, detector (YOLOv8n + classical fusion),
-                            blur, embedder (ORB), pipeline orchestrator
-agent/     FastAPI triage — routes/ (jobs, tickets, export, health),
-                            services/ (cluster, scorer, filer, webhook, trace, cache),
-                            db/ (dynamo, s3), models/, worker.py, demo_worker.py
-web/       React + Leaflet — Map, Queue, Upload, TicketDrawer, Method, ⌘K palette
-                            (npm run dev for HMR, API proxied to :8000)
-infra/     Dockerfiles, compose files, localstack/AWS scripts, CloudWatch dashboard
-eval/      Demo route + ground truth, bench harness, eval_detector/dedup/severity.py,
-                            failure_cases/ gallery
-scripts/   GPS sim, synthetic demo generator, label helper, demo seeder, cascade fetcher
-docs/      Technical report, arch diagram, perf ledger (PERF.md)
-config.yaml  Shared knobs (dedup, severity, privacy, detection) — see below
+```bash
+curl http://localhost:8000/jobs/<job_id>
+curl "http://localhost:8000/tickets?status=pending&sort=severity"
+curl http://localhost:8000/tickets/t_hole01
 ```
 
-> `specs/` (planning) and run state (`.orchestrator/`, `.token-optimizer/`) are **local-only, never committed** — see `.gitignore`.
+Human override appends to the same trace the agent writes:
 
----
+```bash
+curl -X POST http://localhost:8000/tickets/t_hole02/override \
+  -H "Content-Type: application/json" \
+  -d '{"to": "filed", "reason": "confirmed on site"}'
+```
 
-## ⚙️ Configuration
+Export filed tickets for the work-order system:
 
-### `config.yaml` — the knobs that change behavior
+```bash
+curl "http://localhost:8000/export.csv?status=filed" -o tickets-filed.csv
+```
 
-Copy-paste reference (defaults shown):
+Video intake caps at 2 GB (`413` above that). Filenames must use `mp4/mov/avi/mkv` for video and `csv/srt` for GPS, or the API returns `422`.
+
+## How it works
+
+```mermaid
+flowchart LR
+    V["S3 raw (mp4 plus GPS)"] --> Q["SQS jobs"]
+    Q --> W["Batch worker (decode, detect, blur, embed)"]
+    W --> D["DynamoDB detections"]
+    W --> C["S3 crops"]
+    D --> A["Agent (cluster, score, file or queue)"]
+    A --> T["DynamoDB tickets plus traces"]
+    T --> UI["React map plus queue"]
+    UI -->|"CSV, webhook"| CITY["City work order"]
+    UI -->|"override"| A
+```
+
+Uploads land in S3 and queue through SQS. The worker decodes, detects, blurs, and embeds; detections land in DynamoDB and crops in S3. The agent clusters sightings of the same hole, scores severity, and files, queues, or dismisses with a trace entry. The React app reads tickets, exports CSV or fires webhooks, and human overrides flow back into the agent.
+
+Detection fusion (`vision/detector.py`): YOLO overlap with a classical box adds 0.1 confidence; large classical-only regions enter at 0.45; borderline YOLO hits get a focused ROI re-check; final pass re-runs NMS.
+
+Severity (`agent/services/scorer.py`):
+
+```
+severity = 100 * (0.50 * area_norm + 0.25 * repeat_norm + 0.15 * route_w + 0.10 * lane_w)
+```
+
+At or above 70 files automatically; 40 to 69 queues for review; below 40 dismisses. Severity at or above 85 on an arterial route forces human review instead of auto-filing.
+
+Dedup (`agent/services/cluster.py`): DBSCAN over a combined geo plus visual distance with `geo_eps_m = 15`, `cos_thresh = 0.82`, `min_samples = 2`. Lone weak hits (confidence at or below 0.5) are dismissed.
+
+## Configuration
+
+Tunables live in `config.yaml`; environment variables override for deployments. Copy `.env.example` to `.env` for real backends; local compose already sets the test endpoints.
 
 ```yaml
 ward: "ward-12-demo"
-
-dedup:                       # DBSCAN over GPS + visual similarity
-  geo_eps_m: 15              # sightings within 15 m *may* be the same hole
-  cos_thresh: 0.82           # …but only if crop embeddings match ≥ 0.82
-  min_samples: 2             # 2+ sightings to form a cluster
-
-severity:                    # weights must ~sum to 1.0
-  w_area: 0.50               # perspective-normalized hole size
-  w_repeat: 0.25             # seen on N passes (saturates at 5)
-  w_route: 0.15              # within 50 m of a bus route
-  w_lane: 0.10               # center-lane vs shoulder
-  auto_file_threshold: 70    # ≥70 → filed automatically
-  review_threshold: 40       # 40–69 → human queue; <40 → dismissed
-
-privacy:
-  blur_faces: true
-  blur_plates: true
-  raw_retain_days: 14        # raw video auto-expires; crops keep blurred copies
-
-detection:                   # YOLOv8n + classical fusion
-  model: "yolov8n"
-  conf_threshold: 0.25
-  nms_iou: 0.5
-  min_box_px: 24             # smaller boxes are noise — dropped
-  classes: [pothole, crack]
-
-embedding:
-  dim: 128
-  method: "orb"              # or "clip-tiny"
+dedup: { geo_eps_m: 15, cos_thresh: 0.82, min_samples: 2 }
+severity: { w_area: 0.50, w_repeat: 0.25, w_route: 0.15, w_lane: 0.10,
+  auto_file_threshold: 70, review_threshold: 40 }
+privacy: { blur_faces: true, blur_plates: true, raw_retain_days: 14 }
+detection: { model: "yolov8n", conf_threshold: 0.25, nms_iou: 0.5,
+  min_box_px: 24, classes: [pothole, crack] }
+embedding: { dim: 128, method: "orb" }
 ```
 
-**Tuning tips:**
-- **Too many duplicate tickets?** Lower `geo_eps_m` (e.g. `10`) or raise `cos_thresh` (e.g. `0.88`).
-- **Missing real holes?** Lower `conf_threshold` to `0.20` — but expect more review-queue load.
-- **Too aggressive auto-filing?** Raise `auto_file_threshold` to `80`. Threshold changes are trace-logged.
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `AWS_REGION` | Yes | `us-east-1` | All AWS calls |
+| `S3_RAW_BUCKET` / `S3_CROPS_BUCKET` | Yes | `civic-lens-raw` / `civic-lens-crops` | Uploaded video, blurred crops |
+| `DYNAMO_TABLE_DETECTIONS` / `_TICKETS` / `_JOBS` | Yes | `cl-detections` / `cl-tickets` / `cl-jobs` | Table names |
+| `SQS_QUEUE_URL` | For jobs | unset | Work queue; missing means `500 SQS_QUEUE_URL not configured` |
+| `WEBHOOK_SECRET` | For webhooks | `changeme` | HMAC-SHA256 `X-CivicLens-Signature` |
+| `CITY_WEBHOOK_URL` | For auto-file notify | unset | Worker delivery target |
+| `CORS_ORIGINS` | No | `http://localhost:3000` | Comma-separated web origins |
+| `AWS_ENDPOINT_URL` / `DYNAMO_ENDPOINT_URL` | Local only | unset | Point at LocalStack / DynamoDB-local |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Local only | `test` / `test` | Local emulator credentials |
+| `CIVICLENS_CONFIG` | No | `config.yaml` | Alternate config path |
+| `METRICS_ENABLED` | No | `1` | CloudWatch metrics toggle |
 
-### `.env` — secrets & backends
+Key knobs: raise `dedup.geo_eps_m` for fewer, larger clusters (safe range 10 to 30 m); raise `dedup.cos_thresh` for stricter visual match (0.75 to 0.90); raise `severity.auto_file_threshold` to file less aggressively (60 to 80); lower `detection.conf_threshold` to catch more at the cost of queue noise (0.15 to 0.40).
+
+## Tech stack
+
+- Vision: Python 3.11, OpenCV, Ultralytics YOLOv8n, ORB embeddings.
+- Agent: FastAPI, Pydantic, scikit-learn DBSCAN, boto3 over DynamoDB, S3, SQS.
+- Web: React 19, Vite, Tailwind v4, Leaflet, Axios, Nginx proxy.
+- Local AWS parity: LocalStack 3.0 (S3 plus SQS), DynamoDB-local.
+- Deploy: Docker, EC2 Graviton option, CloudWatch dashboard JSON in `infra/cloudwatch/`.
+
+## Project structure
+
+```
+agent/       FastAPI triage: routes, cluster/score/file services, DynamoDB/S3 clients
+vision/      OpenCV pipeline: detector, classical fallback, blur, embedder, GPS
+web/src/     React map, review queue, upload, ticket drawer, API client
+infra/       Compose stacks, Dockerfiles, Nginx proxy, AWS setup scripts
+eval/        Detector/dedup/severity evals, throughput bench, failure-cases log
+scripts/     Demo seeder, GPS simulator, synthetic video, label helper
+docs/        Living technical report, perf ledger, architecture diagram
+config.yaml  Shared dedup/severity/privacy/detection tunables
+```
+
+`specs/` and run state (`.orchestrator/`, `.token-optimizer/`) are local-only and gitignored.
+
+## API reference
+
+Base URL `http://localhost:8000`. Full shapes live in `agent/models/` and `/docs`.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Liveness probe, returns `{"status": "ok", "service": "civiclens-agent"}` |
+| `POST` | `/jobs` | Queue by URL (JSON `video_url`, `gps_url`, `ward`) |
+| `POST` | `/jobs/upload` | Multipart upload (`video`, optional `gps`, `ward`) |
+| `GET` | `/jobs/{job_id}` | Job status plus progress |
+| `GET` | `/tickets?status=&sort=` | List; `status` is filed, pending, or dismissed; `sort` is severity or timestamp |
+| `GET` | `/tickets/{ticket_id}` | Full ticket with signals and trace |
+| `POST` | `/tickets/{ticket_id}/override` | Human override (`to`: filed, pending, or dismissed; `reason`) |
+| `GET` | `/export.csv?status=filed` | CSV work-order export |
+| `POST` | `/webhooks/test` | Signed webhook delivery check |
+
+Exported tickets reject override with `409` until re-opened. Presigned crop URLs expire after 15 minutes and re-issue on read.
+
+## Evaluation and limitations
+
+Reproduce locally with `python eval/eval_dedup.py`, `python eval/eval_severity.py`, `python eval/eval_detector.py`, and `make bench`. Test suite runs with `make test`.
+
+| Metric | Result | Target | Status |
+|---|---|---|---|
+| Dedup compression | 8.89x (80 sightings into 9 clusters) | Above 5x | Pass |
+| Dedup precision / recall | 1.00 / 0.88 | Above 0.90 / 0.80 | Pass |
+| Severity rank agreement | Spearman rho 1.00 | At or above 0.70 | Pass |
+| Classical fallback P/R | 0.29 / 0.50 | N/A, fallback only | Informational |
+| Fused YOLO plus classical | Needs pothole-trained weights | Above 0.70 P/R | Open |
+
+Dedup, severity, and classical numbers above were re-run on 2026-10-11 on this machine and match the committed eval scripts. Throughput and bundle figures (ARM Ampere 356 ms per frame, ~139 KB gzip) are reported in `docs/report.md` and `docs/PERF.md`; rerun `make bench` and `vite build` before quoting them for your hardware. `make test` is green here: 46 passed in `agent/`, 27 passed plus 2 skipped in `vision/`.
+
+What is real versus simulated: detection fusion, blur, ORB dedup, scoring gates, traces, override, CSV export, and the local AWS stack all run. YOLO ships COCO weights until pothole weights (RDD2020 or equivalent) are trained. Night, rain glare, speed-breaker, tar-patch, and GPS-drift splits are documented in `eval/failure_cases/README.md`.
+
+## Deployment
 
 ```bash
-cp .env.example .env   # required for real deployments; local compose works without it
+./infra/scripts/setup-aws.sh
+cp .env.example .env
+CORS_ORIGINS=https://your-web-host \
+WEBHOOK_SECRET=$(openssl rand -hex 32) \
+docker compose -f infra/docker-compose.prod.yml up --build -d
 ```
 
-| Variable | Example | What it's for |
-|----------|---------|---------------|
-| `AWS_REGION` | `us-east-1` | All AWS calls |
-| `S3_RAW_BUCKET` / `S3_CROPS_BUCKET` | `civic-lens-raw` | Uploaded video / blurred crops |
-| `DYNAMO_TABLE_DETECTIONS` / `_TICKETS` / `_JOBS` | `cl-tickets` | Detections, tickets, jobs |
-| `SQS_QUEUE_URL` | `https://sqs.…/civic-lens-jobs` | Vision work queue (missing → `500 SQS_QUEUE_URL not configured`) |
-| `WEBHOOK_SECRET` | `changeme` | HMAC-SHA256 signs `X-CivicLens-Signature` on webhooks |
-| `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated allowlist (prod: `https://<web-host>`) |
-| `AWS_ENDPOINT_URL` / `DYNAMO_ENDPOINT_URL` | `http://localhost:4566` / `:8100` | **Local dev only** — point at localstack / DynamoDB-local |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | `test` / `test` | **Local dev only** — never use real keys here |
+Production uses real S3 (SSE-S3, 14-day raw lifecycle), DynamoDB on-demand with a `status-severity-index` GSI and 90-day detection TTL, SQS, and an EC2 role (`civiclens-ec2-role`) instead of access keys. The web Nginx proxies `/jobs`, `/tickets`, `/export.csv`, `/webhooks`, and `/health` to the agent. A CloudWatch dashboard template ships in `infra/cloudwatch/dashboard.json`.
 
----
+## Privacy and responsible use
 
-## 🔌 API reference (+ copy-paste examples)
+Faces and plates blur before storage; raw video expires after 14 days; detections expire after 90 days; storage uses SSE-S3; webhooks sign with HMAC-SHA256; crop URLs are 15-minute presigned; CORS is allowlisted; every ticket ships as verify-on-site advisory with no auto-dispatch.
 
-Base URL local: `http://localhost:8000` · interactive docs: `http://localhost:8000/docs`
+## Known issues
 
-### `GET /health` — is it alive?
+| Issue | Impact | Status |
+|---|---|---|
+| YOLOv8n ships COCO weights | Low pothole recall until retrained | Train on RDD2020 or custom data |
+| Classical P 0.29 | Noisy alone, gated in fusion | Fallback only by design |
+| GPS drift splits one cluster | Duplicate ticket in eval (recall 0.88) | Tune `geo_eps_m`, add map matching |
+| Night and rain glare | Misses or false positives | Needs trained weights or IR |
+| Speed breakers and tar patches | Classical false positives | Suppressed by fusion, pending review |
+| LocalStack pinned to 3.0 | 4.x needs a token | Stays on 3.0 for local dev |
+
+## Contributing
 
 ```bash
-curl localhost:8000/health
-# {"status":"ok","service":"civiclens-agent"}
+git checkout -b feat/your-feature
+make lint
+make test
 ```
 
-### `POST /jobs` — queue a video by URL
+Python follows flake8 (max line 100) with type hints; web uses eslint plus Prettier; commits use Conventional Commits (`feat:`, `fix:`, `docs:`). Update `config.yaml` comments, `docs/report.md` numbers, and this README when behavior changes, and include `make test` output in the PR.
 
-```bash
-curl -X POST localhost:8000/jobs -H 'Content-Type: application/json' -d '{
-  "video_url": "s3://civic-lens-raw/routeA.mp4",
-  "gps_url":   "s3://civic-lens-raw/routeA.csv",
-  "ward":      "ward-12-demo"
-}'
-# {"job_id":"a3f9…","status":"queued"}
-```
+## Further reading
 
-### `POST /jobs/upload` — queue a video by file (what the web Upload tab uses)
+| Doc | Description |
+|---|---|
+| `docs/report.md` | Living technical report with measured numbers |
+| `docs/PERF.md` | Performance ledger of kept and dropped optimizations |
+| `docs/arch_diagram.mmd` | Architecture diagram source |
+| `eval/failure_cases/README.md` | Documented failure modes |
+| `docs/cool_appendix.md` | COOL benchmark details |
 
-```bash
-curl -X POST localhost:8000/jobs/upload \
-  -F video=@routeA.mp4 -F gps=@routeA.csv -F ward=ward-12-demo
-# {"job_id":"b71c…","status":"queued"}
-```
+## License
 
-Video: `.mp4` `.mov` `.avi` `.mkv` · GPS: `.csv` `.srt` · **2 GB max** (else `413`).
+MIT License, see [`LICENSE`](LICENSE) for details.
 
-### `GET /jobs/{job_id}` — poll progress
+## Acknowledgments
 
-```bash
-curl localhost:8000/jobs/b71c… 
-# {"job_id":"b71c…","status":"processing","progress_pct":42.5,"counts":{…}}
-```
-Statuses: `queued → processing → completed | failed`.
+Ultralytics for YOLOv8; OpenCV for vision plus ORB; scikit-learn for DBSCAN; FastAPI, React, and Leaflet for the stack; LocalStack for local AWS parity. Demo crops are Wikimedia Commons pothole photographs, see `web/public/demo-crops/ATTRIBUTION.txt` for authors and licenses.
 
-### `GET /tickets` — list tickets
-
-```bash
-curl 'localhost:8000/tickets?status=filed&sort=severity'
-# [{ "ticket_id":"t_hole01","severity":82,"status":"filed",
-#     "centroid":[12.9716,77.5946],"crop_url":"https://…(presigned, 15 min)",
-#     "signals":{"area_norm":78,"repeat":100,"bus_route_w":100,"center_lane":100},
-#     "trace":[{…}] }, …]
-```
-`status` ∈ `filed|pending|dismissed` (omit = all) · `sort` ∈ `severity|timestamp` (default `severity`).
-
-### `GET /tickets/{id}` — one ticket
-
-```bash
-curl localhost:8000/tickets/t_hole01
-```
-
-### `POST /tickets/{id}/override` — human approves / dismisses
-
-```bash
-curl -X POST localhost:8000/tickets/t_hole02/override \
-  -H 'Content-Type: application/json' -d '{"to":"filed","reason":"confirmed on site"}'
-# {"ticket_id":"t_hole02","status":"filed", …}
-```
-`to` ∈ `filed|pending|dismissed` · already-exported tickets return **`409`** (see gotchas).
-
-### `GET /export.csv?status=filed` — work orders for road crews
-
-```bash
-curl -o filed.csv 'localhost:8000/export.csv?status=filed'
-head -2 filed.csv
-# ticket_id,lat,lon,severity,status,crop_url,video_url,t,RoadName
-```
-Columns: `ticket_id, lat, lon, severity, status, crop_url, video_url, t, RoadName`. The web *Export CSV* button hits this endpoint.
-
-### `POST /webhooks/test` — verify a receiver
-
-```bash
-curl -X POST localhost:8000/webhooks/test \
-  -H 'Content-Type: application/json' -d '{"url":"https://example.com/hook"}'
-# {"ok":true,"latency_ms":212,"status_code":200}
-```
-Real `ticket.filed` webhooks carry `{event, ticket_id, lat, lon, severity, status, crop_url, advisory:"verify on site", timestamp}` + `X-CivicLens-Signature: <hmac-sha256>` (verify with `WEBHOOK_SECRET`).
-
-### JavaScript (same API the React app uses)
-
-```js
-import { fetchTickets, uploadJob, overrideTicket } from './api/client.js';
-
-const tickets = await fetchTickets({ status: 'pending' });
-const { job_id } = await uploadJob({ video, gps });   // File objects
-await overrideTicket('t_hole02', { to: 'filed', reason: 'confirmed on site' });
-```
-
----
-
-## 📊 Evaluation — does it actually work?
-
-```bash
-python eval/eval_detector.py   # classical path vs key-frame ground truth
-python eval/eval_dedup.py      # 80 sightings → clusters, precision / recall
-python eval/eval_severity.py   # system vs engineer rank, Spearman rho
-```
-
-| Check | Result | Honest caveat |
-|-------|--------|---------------|
-| Dedup | **80 → 9 (8.9×), precision 1.00, recall 0.88** | One GPS-drift split — documented in `eval/failure_cases/` |
-| Severity ranking | **Spearman ρ = 1.00** (PASS ≥ 0.70) | Rank perfect; absolute scores skew low on synthetic data |
-| Classical-only detector | P = 0.29, R = 0.50 | That's the *fallback*, not the fused system — YOLO numbers need pothole-trained weights + RDD2020 |
-| Full test suite | `make test` → green | Includes hardening tests (auth, injection, override guards) |
-| Perf | `docs/PERF.md` — dedup 78→26 ms @ n=400, ORB 11.5→1.8 ms/crop | `make bench` reproduces vision throughput |
-
-Failure gallery (night drop, rain glare, speed breakers, tar patches): `eval/failure_cases/README.md`.
-
----
-
-## ☁️ Real-AWS deploy
-
-```bash
-./infra/scripts/setup-aws.sh   # provisions S3 + DynamoDB + SQS (needs credentials)
-CORS_ORIGINS=https://<web-host> WEBHOOK_SECRET=<secret> docker compose up --build
-```
-
-Live reference (Oct 2026, `ap-southeast-2`): EC2 `t4g.small` running `agent-api` + `web` from `infra/docker-compose.prod.yml` against real S3/DynamoDB/SQS via the instance role `civiclens-ec2-role` — **no access keys on the box**. See `docs/report.md §5` for the full inventory.
-
----
-
-## ⚠️ Edge cases & gotchas (read before you debug)
-
-1. **Demo mode ≠ broken.** If the web shows an amber *Demo mode* badge, the API is unreachable and you're seeing mock tickets. Check `agent-api` is up (`curl localhost:8000/health`) — don't file bugs against mock data.
-2. **Sample review rows are client-side only.** `SAMPLE_REVIEW` backfills the queue when no real `pending` tickets exist; approving them only flips local state. Real rows persist via `POST /tickets/{id}/override`.
-3. **Exported tickets are frozen.** Overriding a ticket with `exported: true` returns **409** — deliberate, so CSVs crews already hold never silently change. Clone the ticket instead.
-4. **Arterial ≥ 85 never auto-files.** High-cost road repairs always need a human, even at max severity. Don't "fix" this as a bug.
-5. **Video limits bite.** `> 2 GB` → `413 Video exceeds 2GB limit` (both URL `Content-Length` check and multipart path). Weird filenames (paths, spaces, odd extensions) → `422`. Allowed: video `.mp4/.mov/.avi/.mkv`, GPS `.csv/.srt`.
-6. **GPS drift splits clusters.** If one hole becomes two tickets ~15–30 m apart, that's the known drift failure (see `eval/failure_cases/`). Mitigate by lowering `geo_eps_m` or improving the track — not by tweaking the visual threshold first.
-7. **Lone weak detections vanish.** A single sighting with `conf ≤ 0.5` is dismissed as noise. Real but faint holes need a second pass or a lower `conf_threshold`.
-8. **Presigned URLs expire (15 min).** `crop_url`s are re-signed on read; a stale URL from an old export will 403 — re-fetch the ticket or re-export. Presign failures are **fail-open** (you get the `s3://` URI instead of an error).
-9. **Ticket list is cached 5 s.** Rapid override → list may look stale for a few seconds. `GET /tickets/{id}` is always fresh.
-10. **DynamoDB returns numbers as strings sometimes.** The web normalizes at the API boundary (`normalizeTicket`) — if you write your own client, coerce `severity`/`repeat_count`/`centroid` the same way or `.toFixed()` will crash.
-11. **Uploads need patience.** The web gives multipart uploads a **10-minute** timeout (not the default 15 s) — don't shrink it for phone videos on slow links.
-12. **CORS defaults to localhost.** Prod needs `CORS_ORIGINS=https://<web-host>` or the map loads with zero tickets and confusing network errors.
-13. **Classical detector is a fallback, not the product.** Its P/R (≈0.29/0.50) proves the harness; accuracy claims need YOLO weights trained on potholes. Don't quote classical numbers as system accuracy.
-14. **ORB has a 128px floor.** Capping embed inputs at 128px is a 6× win; going to 64px produces zero-vectors and kills recall (tried, reverted — `docs/PERF.md`).
-15. **Localstack 3.0 is pinned deliberately.** `localstack/localstack:3.0` is the last OSS track; 4.x needs a token. Don't "upgrade" it casually.
-
----
-
-## 🔧 Troubleshooting
-
-| Symptom | Likely cause → fix |
-|---------|--------------------|
-| `docker compose up` fails on ports | `:3000` / `:8000` / `:4566` / `:8100` already bound → `docker ps`, stop the clash |
-| Map empty, no Demo badge | `CORS_ORIGINS` wrong in prod, or ad-blocker killing Leaflet tiles → check browser console |
-| `SQS_QUEUE_URL not configured` (500) | `.env` missing → `cp .env.example .env` and set it |
-| `seed-demo` seeds but API shows 0 tickets | Seeded the wrong backend (local vs real) → check `DYNAMO_ENDPOINT_URL` / `AWS_ENDPOINT_URL` match the stack you're querying |
-| Webhook never arrives | Receiver must return 2xx within 10 s; verify HMAC with `WEBHOOK_SECRET` → test with `POST /webhooks/test` |
-| `make test` fails on `ultralytics` import | Vision tests need `pip install -r vision/requirements.txt` (or run `make install` first) |
-
----
-
-## 🧰 Tech stack
-
-`FastAPI · OpenCV 5 / YOLOv8n · scikit-learn DBSCAN · DynamoDB · S3 · SQS · React 19 · Leaflet · Tailwind 4 · Vite · Docker / LocalStack`
-
-Pinned versions: [`requirements.lock`](requirements.lock) (Python) · [`web/package-lock.json`](web/package-lock.json) (JS).
-
----
-
-## 🤝 Contributing
-
-```bash
-make lint && make test && make secrets   # green before you push
-```
-
-Keep docs next to the code they describe, update `docs/report.md` numbers with the reproduce command inline, and log perf wins *and* dead ends in `docs/PERF.md` so nobody re-runs a failed idea.
-
----
-
-## 📄 License
-
-MIT © 2026 Divyanshu — see [LICENSE](LICENSE).
+> Built for cities that move.
+> *CivicLens: the truck that knows every pothole should be the one that reports it.*
