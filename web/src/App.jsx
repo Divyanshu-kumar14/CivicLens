@@ -8,6 +8,7 @@ import {
   uploadJob,
 } from './api/client.js';
 import MapView from './components/Map/MapView.jsx';
+import Clock from './components/Clock.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import StatsRail from './components/Stats/StatsRail.jsx';
 
