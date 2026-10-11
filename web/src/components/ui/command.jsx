@@ -87,16 +87,19 @@ export default function CommandPalette({ open, onClose, tickets, onOpenTicket, o
           onClick={(e) => e.stopPropagation()}
           onKeyDown={onKey}
         >
-          <div className="flex items-center gap-2 border-b border-white/8 px-4">
-            <Search size={16} className="text-slate-500" />
+          {/* Search header: the container owns the focus ring (single cyan
+              hairline), the input itself is chrome-free so there is never a
+              double nested box. */}
+          <div className="flex items-center gap-2 border-b border-white/8 px-4 transition-colors focus-within:border-[rgba(58,226,255,0.35)] focus-within:bg-cyan-300/[0.03]">
+            <Search size={16} className="shrink-0 text-slate-500" />
             <input
               ref={inputRef}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search tickets, jump to views, export…"
-              className="h-12 w-full bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
+              className="h-12 w-full border-0 bg-transparent text-sm text-slate-100 shadow-none outline-none placeholder:text-slate-500 focus:outline-none focus:ring-0 focus-visible:outline-none"
             />
-            <kbd className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">esc</kbd>
+            <kbd className="shrink-0 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">esc</kbd>
           </div>
           <div className="max-h-72 overflow-y-auto p-1.5">
             {actions.length === 0 && <div className="px-3 py-6 text-center text-[13px] text-slate-500">No matches — try a ticket id or “export”.</div>}
@@ -105,7 +108,7 @@ export default function CommandPalette({ open, onClose, tickets, onOpenTicket, o
                 key={`${a.kind}-${a.id}`}
                 onMouseEnter={() => setIdx(i)}
                 onClick={() => { a.run(); onClose(); }}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${i === idx ? 'bg-cyan-300/10 text-white' : 'text-slate-300'}`}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${i === idx ? 'bg-cyan-300/[0.09] text-white shadow-[inset_0_0_0_1px_rgba(58,226,255,0.22)]' : 'text-slate-300'}`}
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300">
                   {a.icon || <Search size={14} />}
