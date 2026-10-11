@@ -105,6 +105,10 @@ export default function App() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // The drawer is map context: close it on every view switch so Queue and
+  // Upload always get the full width. Runs on mount too (no-op).
+  useEffect(() => { setSelectedId(null); }, [view]);
+
   // Global Cmd+K / Ctrl+K for the action search bar (Kokonut-style).
   useEffect(() => {
     const onKey = (e) => {
