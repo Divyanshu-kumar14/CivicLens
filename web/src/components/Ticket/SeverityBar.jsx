@@ -38,8 +38,10 @@ export default function SeverityBar({ severity = 0, compact = false }) {
 
   return (
     <div>
-      <div className="text-sm text-slate-300">
-        <span className="font-display text-lg font-bold tabular-nums text-slate-50">{severity}</span> — {labelFor(severity)}
+      <div className="text-sm">
+        <span className="font-display text-lg font-bold tabular-nums text-slate-50">{severity}</span>
+        <span className="text-slate-500"> — </span>
+        <span className="font-display text-sm font-semibold tracking-tight text-slate-100">{labelFor(severity)}</span>
       </div>
       <div className="relative m-0 my-[7px] h-2.5 rounded bg-[#161c26]" title={`${severity} (${labelFor(severity)})`}>
         <div

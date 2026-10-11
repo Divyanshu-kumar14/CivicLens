@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check, ClipboardCopy, X } from 'lucide-react';
 import { colorFor } from '../../utils/severity.js';
+import { prettySignalKey, prettyTicketId } from '../../utils/labels.js';
 import FrameStrip from './FrameStrip.jsx';
 import SeverityBar from './SeverityBar.jsx';
 import TraceTimeline from './TraceTimeline.jsx';
@@ -63,7 +64,10 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
         ) : null}
       </div>
 
-      <h3 className="font-display text-lg font-bold tracking-tight">{ticket.ticket_id}</h3>
+      <div>
+        <h3 className="font-display text-lg font-bold tracking-tight">{prettyTicketId(ticket.ticket_id)}</h3>
+        <div className="text-[11px] tabular-nums text-slate-500">{ticket.ticket_id}</div>
+      </div>
 
       {/* Hero crop: real S3 crop wins; otherwise the local demo crop. The
           dashed placeholder sits beneath — if the img fails (unknown ticket
@@ -93,7 +97,7 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
           center_lane: signals.center_lane,
         }).map(([k, v]) => (
           <Card key={k} className="p-2.5">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">{k}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">{prettySignalKey(k)}</div>
             <div className="font-display mt-0.5 text-[17px] font-bold tabular-nums">{v ?? '—'}</div>
           </Card>
         ))}

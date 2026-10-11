@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import L from 'leaflet';
 import { CircleMarker, MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet';
 import { colorFor } from '../../utils/severity.js';
+import { prettyStatus, prettyTicketId } from '../../utils/labels.js';
 
 // Demo ward center (matches API sample coords).
 export const DEFAULT_CENTER = [12.9716, 77.5946];
@@ -84,14 +85,14 @@ export default function MapView({
             position={[t.centroid[0], t.centroid[1]]}
             icon={pinIcon(t, t.ticket_id === selectedId, Math.min(i, 20) * 18)}
             keyboard
-            title={`${t.ticket_id}, severity ${t.severity}, ${STATUS_LABEL[t.status] || t.status}`}
+            title={`${prettyTicketId(t.ticket_id)}, severity ${t.severity}, ${prettyStatus(t.status)}`}
             eventHandlers={{ click: () => onPinClick(t.ticket_id) }}
           >
             <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
-              {t.ticket_id} · {t.severity} ({STATUS_LABEL[t.status] || t.status})
+              {prettyTicketId(t.ticket_id)} · {t.severity} ({prettyStatus(t.status)})
             </Tooltip>
             <Popup>
-              {t.ticket_id} — severity {t.severity} ({t.status})
+              {prettyTicketId(t.ticket_id)} — severity {t.severity} ({prettyStatus(t.status)})
             </Popup>
           </Marker>
         ))}

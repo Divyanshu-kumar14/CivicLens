@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Download, Map as MapIcon, Search, UploadCloud, ListChecks } from 'lucide-react';
+import { prettyStatus, prettyTicketId } from '../../utils/labels.js';
 
 // Action search bar (Kokonut-style, fully owned): Cmd+K fuzzy finder over
 // tickets + view actions + exports. No black box — ranking is a 20-line
@@ -37,9 +38,9 @@ export default function CommandPalette({ open, onClose, tickets, onOpenTicket, o
     const ticketHits = (tickets || []).slice(0, 400).map((t) => ({
       kind: 'ticket',
       id: t.ticket_id,
-      title: `${t.ticket_id} · sev ${t.severity} · ${t.status}`,
+      title: `${prettyTicketId(t.ticket_id)} · ${t.severity} · ${prettyStatus(t.status)}`,
       sub: `${t.centroid?.[0]?.toFixed(4)}, ${t.centroid?.[1]?.toFixed(4)}`,
-      s: score(q, `${t.ticket_id} ${t.status} ${t.severity}`),
+      s: score(q, `${t.ticket_id} ${prettyTicketId(t.ticket_id)} ${t.status} ${t.severity}`),
       run: () => onOpenTicket(t.ticket_id),
     })).filter((a) => a.s >= 0);
 
