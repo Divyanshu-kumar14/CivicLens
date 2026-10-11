@@ -1,6 +1,6 @@
 import useCountUp from '../../utils/useCountUp.js';
 
-function Stat({ label, value, decimals = 0 }) {
+function Stat({ label, value, decimals = 0, title }) {
   const num = Number(value);
   const numeric = value !== undefined && value !== null && value !== '—' && !Number.isNaN(num);
   const animated = useCountUp(numeric ? num : 0);
@@ -8,7 +8,7 @@ function Stat({ label, value, decimals = 0 }) {
     ? String(value ?? '—')
     : decimals > 0 ? animated.toFixed(decimals) : String(Math.round(animated));
   return (
-    <div className="cl-stat">
+    <div className="cl-stat" title={title}>
       <div className="label">{label}</div>
       <div className="value">{text}</div>
     </div>
@@ -24,7 +24,7 @@ export default function StatsRail({ stats }) {
   ];
   return (
     <aside className="cl-rail" aria-label="Processing statistics">
-      <Stat label="km processed" value={stats.km} decimals={1} />
+      <Stat label="Coverage (km)" value={stats.km} decimals={1} title="Diagonal span of ticket locations" />
       <Stat label="Raw detections" value={stats.raw} />
       <Stat label="Tickets after dedup" value={stats.tickets} />
       <div className="cl-statusbar" title="Filed / Review / Dismissed">
@@ -35,7 +35,7 @@ export default function StatsRail({ stats }) {
       <Stat label="Filed" value={stats.filed} />
       <Stat label="Review" value={stats.review} />
       <Stat label="Dismissed" value={stats.dismissed} />
-      <Stat label="Est. $/1000km" value={stats.costPer1000km} />
+      <Stat label="Est. $/1000km" value={stats.costPer1000km} title={stats.costHint} />
       {stats.dedup && (
         <span className="cl-dedup" title="Raw detections collapsed into tickets">
           {stats.dedup.from} → {stats.dedup.to} tickets

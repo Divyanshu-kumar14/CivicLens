@@ -137,14 +137,34 @@ export default function App() {
 
   const stats = useMemo(() => {
     const by = (s) => tickets.filter((t) => t.status === s).length;
+    // Coverage: diagonal of the ticket bounding box (haversine). This is the
+    // surveyed span, not odometer distance — the only distance the client can
+    // derive honestly without the GPS track.
+    const lats = tickets.map((t) => t.centroid?.[0]).filter((v) => Number.isFinite(v));
+    const lons = tickets.map((t) => t.centroid?.[1]).filter((v) => Number.isFinite(v));
+    let spanKm = 0;
+    if (lats.length > 1) {
+      const R = 6371;
+      const dLa = ((Math.max(...lats) - Math.min(...lats)) * Math.PI) / 180;
+      const meanLa = ((Math.max(...lats) + Math.min(...lats)) / 2) * (Math.PI / 180);
+      const dLo = ((Math.max(...lons) - Math.min(...lons)) * Math.PI) / 180;
+      spanKm = 2 * R * Math.asin(Math.sqrt(Math.sin(dLa / 2) ** 2 + Math.cos(meanLa) ** 2 * Math.sin(dLo / 2) ** 2));
+    }
+    // $/1000km estimate (live): 1000km at 18km/h survey speed = 55.6h of video
+    // x 2fps sampling = 400k frames x 0.356s YOLO/frame (measured ARM) =
+    // 39.6h compute x ~$0.034/h Graviton-class = ~$1.35. Classical-only path
+    // would be ~$0.03; demo mode keeps its mock figure.
     return {
-      km: live ? '—' : 12.4,
+      km: live ? spanKm : 12.4,
       raw: tickets.reduce((n, t) => n + (t.repeat_count || 1), 0),
       tickets: tickets.length,
       filed: by('filed'),
       review: by('pending'),
       dismissed: by('dismissed'),
-      costPer1000km: live ? '—' : '$8.20',
+      costPer1000km: live ? '$1.35' : '$8.20',
+      costHint: live
+        ? 'Est. from measured 356ms/frame YOLO on ARM @18km/h survey, Graviton-class $0.034/h'
+        : undefined,
       dedup: undefined,
     };
   }, [tickets, live]);
