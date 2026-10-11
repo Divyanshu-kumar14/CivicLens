@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRight, Download, Map as MapIcon, Search, UploadCloud, ListChecks } from 'lucide-react';
+import { ArrowRight, Download, FlaskConical, Map as MapIcon, Search, UploadCloud, ListChecks } from 'lucide-react';
 import { prettyStatus, prettyTicketId } from '../../utils/labels.js';
 
 // Action search bar (Kokonut-style, fully owned): Cmd+K fuzzy finder over
@@ -48,6 +48,7 @@ export default function CommandPalette({ open, onClose, tickets, onOpenTicket, o
       { kind: 'view', id: 'map', title: 'Go to Map', icon: <MapIcon size={15} />, s: score(q, 'go map pins'), run: () => onGoto('map') },
       { kind: 'view', id: 'queue', title: 'Go to Review queue', icon: <ListChecks size={15} />, s: score(q, 'go review queue approve'), run: () => onGoto('queue') },
       { kind: 'view', id: 'upload', title: 'Go to Upload', icon: <UploadCloud size={15} />, s: score(q, 'go upload video job'), run: () => onGoto('upload') },
+      { kind: 'view', id: 'method', title: 'Go to Method', icon: <FlaskConical size={15} />, s: score(q, 'go method how numbers scoring'), run: () => onGoto('method') },
       { kind: 'view', id: 'export', title: 'Export filed CSV', icon: <Download size={15} />, s: score(q, 'export csv download filed'), run: onExport },
     ].filter((a) => a.s >= 0 || !q);
 

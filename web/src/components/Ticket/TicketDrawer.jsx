@@ -5,6 +5,7 @@ import { colorFor } from '../../utils/severity.js';
 import { prettySignalKey, prettyTicketId } from '../../utils/labels.js';
 import { useAddresses } from '../../utils/reverseGeocode.js';
 import FrameStrip from './FrameStrip.jsx';
+import ScoreBreakdown from './ScoreBreakdown.jsx';
 import SeverityBar from './SeverityBar.jsx';
 import TraceTimeline from './TraceTimeline.jsx';
 import { Badge } from '../ui/badge.jsx';
@@ -92,6 +93,8 @@ export default function TicketDrawer({ ticket, onClose, onOverride }) {
 
       <Card className="p-3.5">
         <SeverityBar severity={editSev ?? ticket.severity} />
+        <div className="my-3 h-px bg-white/8" />
+        <ScoreBreakdown signals={signals} severity={editSev ?? ticket.severity} />
       </Card>
 
       <div className="grid grid-cols-2 gap-2">

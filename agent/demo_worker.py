@@ -80,11 +80,18 @@ class DemoWorker(BatchWorker):
                     log.warning("job %s: GPS parse failed (%s), using fallback", job_id, exc)
                     gps_points = None
 
-            detections = self._detect_classical(video_local, gps_points, tmp)
+            detections, annotated_local = self._detect_classical(video_local, gps_points, tmp)
             det_dicts = self._store_detections(job_id, detections, tmp)
+            annotated_url = ""
+            if annotated_local:
+                # "See what the AI saw": 2fps box timelapse next to the crops.
+                annotated_url = self.s3.put_file(
+                    annotated_local, self.s3.raw_bucket, f"{job_id}/annotated.mp4",
+                    content_type="video/mp4")
             clusters = clusterer.cluster_detections(det_dicts)
             counts = {"raw": len(det_dicts), "clusters": len(clusters),
-                      "filed": 0, "review": 0, "dismissed": 0}
+                      "filed": 0, "review": 0, "dismissed": 0,
+                      "annotated_url": annotated_url}
             for cluster in clusters:
                 ticket = filer.process_cluster(scorer.score_cluster(cluster),
                                                webhook_url=self.webhook_url)
@@ -95,9 +102,13 @@ class DemoWorker(BatchWorker):
         log.info("job %s completed: %s", job_id, counts)
         return counts
 
-    def _detect_classical(self, video_path: str, gps_points, tmp: str) -> list:
+    def _detect_classical(self, video_path: str, gps_points, tmp: str) -> tuple:
         """Sample @2fps, Canny boxes, GPS-tagged detection objects for
-        BatchWorker._store_detections (needs crop_path/det_id/embedding/etc)."""
+        BatchWorker._store_detections (needs crop_path/det_id/embedding/etc).
+
+        Also renders a 2fps box timelapse ("see what the AI saw"). Returns
+        (detections, annotated_mp4_path or None). Single pass, no extra RAM.
+        """
         import cv2
         import numpy as np
 
@@ -108,6 +119,8 @@ class DemoWorker(BatchWorker):
         step = max(1, round(src_fps / SAMPLE_FPS))
         crops_dir = os.path.join(tmp, "crops")
         os.makedirs(crops_dir, exist_ok=True)
+        annotated_path = os.path.join(tmp, "annotated.mp4")
+        writer = None
 
         detections, idx, kept = [], 0, 0
         try:
@@ -131,7 +144,6 @@ class DemoWorker(BatchWorker):
                     roi = gray[y:y + bh, x:x + bw]
                     if roi.size == 0 or float(roi.mean()) > road_med - DARK_MARGIN:
                         continue  # brighter than road: paint, patch, sky
-                    x, y, bw, bh = b["x"], b["y"], b["w"], b["h"]
                     pad = 0.1
                     x0, y0 = max(0, int(x - bw * pad)), max(0, int(y - bh * pad))
                     x1, y1 = min(w, int(x + bw * (1 + pad))), min(h, int(y + bh * (1 + pad)))
@@ -139,20 +151,30 @@ class DemoWorker(BatchWorker):
                     crop_path = os.path.join(crops_dir, f"{det_id}.jpg")
                     cv2.imwrite(crop_path, frame[y0:y1, x0:x1])
                     lat, lon = self._locate(gps_points, ts, kept)
+                    conf = _conf_for_area(b["area"])
                     detections.append(SimpleNamespace(
                         det_id=det_id, crop_path=crop_path, timestamp_sec=ts,
-                        lat=lat, lon=lon, cls="pothole",
-                        conf=_conf_for_area(b["area"]),
+                        lat=lat, lon=lon, cls="pothole", conf=conf,
                         x=x, y=y, w=bw, h=bh,
                         # No torch here: constant embedding => dedup merges
                         # on GPS proximity alone (documented trade).
                         embedding=np.ones(8, dtype=float),
                     ))
                     kept += 1
+                    cv2.rectangle(frame, (x, y), (x + bw, y + bh), (0, 165, 255), 2)
+                    cv2.putText(frame, f"pothole {conf:.2f}", (x, max(0, y - 6)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 165, 255), 2)
+                if writer is None:
+                    writer = cv2.VideoWriter(
+                        annotated_path, cv2.VideoWriter_fourcc(*"mp4v"),
+                        SAMPLE_FPS, (w, h))
+                writer.write(frame)
         finally:
             cap.release()
+            if writer is not None:
+                writer.release()
         log.info("classical detect: %d detections", len(detections))
-        return detections
+        return detections, (annotated_path if writer is not None else None)
 
     @staticmethod
     def _locate(gps_points, ts: float, n: int) -> tuple[float, float]:
