@@ -1,0 +1,20 @@
+Demo placeholder crops (replaced automatically once a real video job stores
+S3 crops — the drawer prefers ticket.crop_url whenever present).
+
+All five are real pothole photographs from Wikimedia Commons (freely
+licensed, CC BY / CC BY-SA by their uploaders). Full author + license
+details live on each file page:
+
+- t_hole01.jpg — File:Bache de calle de Milpa Alta.jpg
+  https://commons.wikimedia.org/wiki/File:Bache_de_calle_de_Milpa_Alta.jpg
+- t_hole02.jpg — File:Bache ENP1.jpg
+  https://commons.wikimedia.org/wiki/File:Bache_ENP1.jpg
+- t_hole03.jpg — File:Bache en pavimento1.jpg
+  https://commons.wikimedia.org/wiki/File:Bache_en_pavimento1.jpg
+- t_hole04.jpg — File:Baches.jpg
+  https://commons.wikimedia.org/wiki/File:Baches.jpg
+- t_hole05.jpg — File:Bache grande 1.jpg
+  https://commons.wikimedia.org/wiki/File:Bache_grande_1.jpg
+
+Resized to max 640px width for demo weight. If you use any of these
+outside this demo, credit the photographer per the file page license.
