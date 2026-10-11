@@ -62,6 +62,8 @@ class TicketFiler:
             action, status = "dismiss", "dismissed"
 
         # ACT
+        rep_det = next((d for d in scored.detections
+                        if d.get("det_id") == scored.representative_det_id), None)
         ticket = {
             "ticket_id": f"t_{uuid.uuid4().hex[:12]}",
             "hole_label": "",
@@ -71,6 +73,10 @@ class TicketFiler:
             "severity": scored.severity,
             "status": status,
             "signals": scored.signals,
+            # Hero image: the representative detection's stored crop. Without
+            # this the drawer has nothing to show (empty crop_url once hid
+            # every worker-produced ticket behind a missing demo fallback).
+            "crop_url": (rep_det or {}).get("crop_url", ""),
             "trace": [],
             "created_at": _now(),
             "updated_at": _now(),

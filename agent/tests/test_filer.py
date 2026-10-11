@@ -57,6 +57,23 @@ def test_high_severity_files_and_webhooks():
     assert db.tickets[ticket["ticket_id"]]["status"] == "filed"
 
 
+def test_ticket_carries_representative_crop():
+    """Regression guard: the drawer hero needs the rep detection's crop_url.
+
+    Empty crop_url once hid every worker-produced ticket behind a demo
+    fallback asset that doesn't exist for uuid ids (broken image)."""
+    filer, db, wh, trace = _filer()
+    scored = _scored(82)
+    scored.detections = [
+        {"det_id": "d0", "crop_url": "s3://civic-lens-crops/d0.jpg"},
+        {"det_id": "d1", "crop_url": "s3://civic-lens-crops/d1.jpg"},
+    ]
+    scored.det_ids = ["d0", "d1"]
+    scored.representative_det_id = "d1"
+    ticket = filer.process_cluster(scored)
+    assert ticket["crop_url"] == "s3://civic-lens-crops/d1.jpg"
+
+
 def test_low_severity_dismisses_silently():
     filer, db, wh, trace = _filer()
     ticket = filer.process_cluster(_scored(20, n=1))
