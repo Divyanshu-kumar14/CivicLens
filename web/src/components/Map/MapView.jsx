@@ -9,7 +9,8 @@ import { useAddresses } from '../../utils/reverseGeocode.js';
 // Demo ward center (mean of the spread ticket locations).
 export const DEFAULT_CENTER = [12.9685, 77.5985];
 
-const STATUS_LABEL = { filed: 'Filed', pending: 'Review', dismissed: 'Dismissed' };
+// Status chip labels share the single source in utils/labels.js (F3) —
+ // MapView previously kept its own copy ('Review' vs 'In review').
 
 // Icon cache: rebuilding L.divIcon objects on every parent render forces
 // Leaflet to tear down and re-add every marker. Keyed by visual signature so
@@ -115,14 +116,14 @@ export default function MapView({
         ))}
       </MapContainer>
       <div className="absolute left-[52px] top-3 z-[500] flex gap-1.5">
-        {Object.keys(STATUS_LABEL).map((s) => {
+        {['filed', 'pending', 'dismissed'].map((s) => {
           const on = !statusFilter || statusFilter.has(s);
           return (
           <button
             key={s}
             aria-pressed={on}
             onClick={() => onToggleStatus(s)}
-            title={`Toggle ${STATUS_LABEL[s]} pins`}
+            title={`Toggle ${prettyStatus(s)} pins`}
             className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold backdrop-blur-xl transition-all duration-150 hover:-translate-y-px ${
               on
                 ? 'border-white/12 bg-[rgba(12,15,21,0.88)] text-slate-200'
@@ -130,11 +131,15 @@ export default function MapView({
             }`}
           >
             <span className="h-2 w-2 rounded-full" style={{ background: colorFor({ status: s }), boxShadow: `0 0 6px ${colorFor({ status: s })}` }} />
-            {STATUS_LABEL[s]} <span className="tabular-nums">{counts[s] ?? 0}</span>
+            {prettyStatus(s)} <span className="tabular-nums">{counts[s] ?? 0}</span>
           </button>
           );
         })}
       </div>
+      {/* Raw-detection toggle only exists when there is something to show
+          (F2): App passes [] — no detections endpoint exists — so a permanent
+          toggle was a control with no behavior. It returns if the prop fills. */}
+      {rawDetections.length > 0 && (
       <button
         aria-pressed={showRaw}
         onClick={onToggleRaw}
@@ -146,6 +151,7 @@ export default function MapView({
       >
         {showRaw ? 'Hide' : 'Show'} raw detections
       </button>
+      )}
       <div className="absolute bottom-[26px] left-3 z-[500] rounded-[10px] border border-white/10 bg-[rgba(12,15,21,0.88)] px-3 py-2 text-xs text-slate-400 backdrop-blur-xl">
         <div className="my-1 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: '#ff5252' }} /> Filed ≥ 70</div>
         <div className="my-1 flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: '#ffb020' }} /> Review 40–69</div>
