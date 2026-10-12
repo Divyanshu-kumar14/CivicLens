@@ -276,7 +276,6 @@ export default function App() {
       costHint: live
         ? 'Est. from measured 356ms/frame YOLO on ARM @18km/h survey, Graviton-class $0.034/h'
         : undefined,
-      dedup: undefined,
     };
   }, [tickets, live]);
 
