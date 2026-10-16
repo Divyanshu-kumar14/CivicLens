@@ -33,7 +33,12 @@ export default function TraceTimeline({ trace = [] }) {
             </small>
             {e.signals && Object.keys(e.signals).length > 0 && (
               <div>
-                {Object.entries(e.signals).map(([k, v]) => (
+                {Object.entries(e.signals)
+                  // Trace signals carry nested explainability detail
+                  // (contributions/thresholds objects) for API consumers;
+                  // badges stay readable by showing primitives only.
+                  .filter(([, v]) => v === null || ['string', 'number', 'boolean'].includes(typeof v))
+                  .map(([k, v]) => (
                   <span className="cl-sigbadge" key={k}>
                     {k}: {typeof v === 'number' ? Math.round(v) : String(v)}
                   </span>

@@ -66,11 +66,21 @@ def main() -> None:
     single = sum(1 for h in holes
                  if sum(1 for c in clusters if h in {truth[d] for d in c.det_ids}) == 1)
     recall = single / len(holes) if holes else 0.0
+    # Operations view: extra tickets for already-covered holes (duplicate
+    # work) + clusters matching no real hole (false tickets wasting a visit).
+    extra = sum(max(0, sum(1 for c in clusters
+                           if h in {truth[d] for d in c.det_ids}) - 1)
+                for h in holes)
+    false_tickets = sum(1 for c in clusters
+                        if not ({truth[d] for d in c.det_ids} & holes))
+    duplicate_rate = extra / len(clusters) if clusters else 0.0
     # GPS sanity: worst intra-sighting drift must sit inside geo_eps_m.
     print(f"raw={stats['raw']} -> clusters={stats['clustered']} "
           f"(ratio {stats['ratio']}, -{stats['reduction_pct']}%)")
     print(f"cluster precision={precision:.2f} (pure {pure}/{len(clusters)}), "
           f"recall={recall:.2f} ({single}/{len(holes)} holes in exactly one cluster)")
+    print(f"duplicate rate={duplicate_rate:.2f} ({extra} extra ticket(s) over "
+          f"{len(clusters)} clusters), false tickets per route={false_tickets:.1f}")
     print(f"truth holes={len(holes)}, max GPS pair drift covered by eps=15m: "
           f"{haversine_distance(BASE_LAT, BASE_LON, BASE_LAT + 8 / 111195.0, BASE_LON):.1f}m")
 
