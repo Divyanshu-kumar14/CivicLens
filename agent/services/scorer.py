@@ -83,8 +83,17 @@ class SeverityScorer:
             + self.w_route * bus_route_w
             + self.w_lane * center_lane
         )
+        contributions = {
+            "area": round(self.w_area * area_norm, 1),
+            "repeat": round(self.w_repeat * repeat, 1),
+            "route": round(self.w_route * bus_route_w, 1),
+            "lane": round(self.w_lane * center_lane, 1),
+        }
         signals = {"area_norm": round(area_norm, 1), "repeat": round(repeat, 1),
-                   "bus_route_w": bus_route_w, "center_lane": center_lane}
+                   "bus_route_w": bus_route_w, "center_lane": center_lane,
+                   "contributions": contributions,
+                   "thresholds": {"auto_file": self.auto_file_threshold,
+                                  "review": self.review_threshold}}
         return ScoredCluster(
             cluster_id=cluster.cluster_id, det_ids=cluster.det_ids,
             centroid=cluster.centroid, repeat_count=cluster.repeat_count,
@@ -99,3 +108,44 @@ class SeverityScorer:
         if severity >= self.review_threshold:
             return "review"
         return "auto_dismiss"
+
+
+def explain_decision(scored: ScoredCluster, arterial: bool = False,
+                     auto_file_threshold: int = 70,
+                     review_threshold: int = 40) -> list[str]:
+    """Human-readable factors behind a file/review/dismiss outcome.
+
+    Pure helper over an already-scored cluster — the same strings land in
+    the ticket trace via TicketFiler so a reviewer sees *why*, not just the
+    number. First element keeps the legacy one-line reason
+    (severity-vs-threshold / human review required / low_severity) so
+    existing trace consumers keep matching; the rest is additive detail.
+    """
+    sev = scored.severity
+    thresholds = (scored.signals or {}).get("thresholds") or {}
+    auto_thr = thresholds.get("auto_file", auto_file_threshold)
+    review_thr = thresholds.get("review", review_threshold)
+    forced_review = arterial and sev >= 85
+    if sev >= auto_thr and not forced_review:
+        reasons = [f"severity {sev} >= {auto_thr}"]
+    elif forced_review or sev >= review_thr:
+        reasons = ["human review required"]
+    else:
+        reasons = ["low_severity"]
+    if forced_review:
+        reasons.append("arterial route with severity>=85 forces human review "
+                       "(auto-file suppressed)")
+    contrib = (scored.signals or {}).get("contributions", {})
+    if contrib:
+        top = max(contrib, key=lambda k: contrib[k])
+        reasons.append(f"largest contributor: {top} ({contrib[top]} pts)")
+        area_pts = contrib.get("area", 0)
+        reasons.append(f"area {scored.signals.get('area_norm', 0)} x weight -> "
+                       f"{area_pts} pts")
+    repeats = scored.repeat_count
+    reasons.append(f"seen on {repeats} pass{'es' if repeats != 1 else ''}")
+    if (scored.signals or {}).get("bus_route_w") == 100.0:
+        reasons.append("within 50m of a bus route (+route weight)")
+    lane = (scored.signals or {}).get("center_lane", 0)
+    reasons.append("center-lane position" if lane == 100.0 else "off-center position")
+    return reasons

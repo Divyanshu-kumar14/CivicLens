@@ -81,11 +81,16 @@ class TicketFiler:
             "created_at": _now(),
             "updated_at": _now(),
         }
-        reason = {"file": f"severity {scored.severity} >= {self.auto_file_threshold}",
-                  "review": "human review required",
-                  "dismiss": "low_severity"}[action]
-        entry = self._log(ticket["ticket_id"], "new", status, [reason],
-                          scored.signals)
+        # Explainable trace: legacy one-liner first (consumers match on it),
+        # then per-factor detail from the scorer so reviewers see *why*.
+        from agent.services.scorer import explain_decision
+
+        reasons = explain_decision(
+            scored, arterial=arterial,
+            auto_file_threshold=self.auto_file_threshold,
+            review_threshold=self.review_threshold)
+        entry = self._log(ticket["ticket_id"], "new", status, reasons,
+                          {**scored.signals, "arterial": arterial})
         if entry is not None:
             ticket["trace"].append(entry)
 
