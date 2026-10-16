@@ -88,6 +88,35 @@ def test_arterial_critical_forces_review():
     assert wh.sent == []
 
 
+def test_filer_threshold_boundaries():
+    """70 files, 69/40 review, 39 dismisses; arterial 84 files, 85 reviews."""
+    filer, db, wh, trace = _filer()
+    assert filer.process_cluster(_scored(70))["status"] == "filed"
+    assert filer.process_cluster(_scored(69))["status"] == "pending"
+    assert filer.process_cluster(_scored(40))["status"] == "pending"
+    assert filer.process_cluster(_scored(39))["status"] == "dismissed"
+    assert filer.process_cluster(_scored(84), arterial=True)["status"] == "filed"
+    assert filer.process_cluster(_scored(85), arterial=True)["status"] == "pending"
+
+
+def test_agent_trace_explains_factors():
+    """Trace reasons carry the decision factors, not just the verdict."""
+    filer, db, wh, trace = _filer()
+    scored = _scored(82)
+    scored.signals = {"area_norm": 46.0, "repeat": 60.0, "bus_route_w": 0.0,
+                      "center_lane": 100.0,
+                      "contributions": {"area": 23.0, "repeat": 15.0,
+                                        "route": 0.0, "lane": 10.0},
+                      "thresholds": {"auto_file": 70, "review": 40}}
+    ticket = filer.process_cluster(scored)
+    entries = trace.get_trace(ticket["ticket_id"])
+    reasons = entries[0]["reasons"]
+    assert reasons[0] == "severity 82 >= 70"  # legacy one-liner preserved
+    assert any("largest contributor" in r for r in reasons)
+    assert any("pass" in r for r in reasons)
+    assert entries[0]["signals"]["arterial"] is False
+
+
 def test_override_appends_human_trace():
     filer, db, wh, trace = _filer()
     ticket = filer.process_cluster(_scored(50))

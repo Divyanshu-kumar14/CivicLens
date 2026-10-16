@@ -24,7 +24,8 @@ def test_big_centered_repeat_auto_files():
     scored = scorer.score_cluster(_cluster(n=6), bus_routes=bus)
     assert scored.severity >= 70
     assert scored.classification == "auto_file"
-    assert set(scored.signals) == {"area_norm", "repeat", "bus_route_w", "center_lane"}
+    assert set(scored.signals) == {"area_norm", "repeat", "bus_route_w", "center_lane",
+                                     "contributions", "thresholds"}
 
 
 def test_tiny_single_offlane_dismisses():
@@ -46,3 +47,44 @@ def test_classify_boundaries():
     assert scorer.classify(70) == "auto_file"
     assert scorer.classify(39) == "auto_dismiss"
     assert scorer.classify(0) == "auto_dismiss"
+
+
+def test_signals_carry_contributions_and_thresholds():
+    from agent.services.scorer import explain_decision
+
+    scorer = SeverityScorer(CONFIG)
+    scored = scorer.score_cluster(_cluster(n=6),
+                                  bus_routes={"r1": [(12.9716, 77.5946)]})
+    contrib = scored.signals["contributions"]
+    assert set(contrib) == {"area", "repeat", "route", "lane"}
+    # Contributions reconstruct the severity (modulo rounding).
+    assert sum(contrib.values()) == pytest.approx(scored.severity, abs=1.0)
+    assert scored.signals["thresholds"] == {"auto_file": 70, "review": 40}
+    reasons = explain_decision(scored)
+    assert reasons[0] == f"severity {scored.severity} >= 70"
+    assert any("largest contributor" in r for r in reasons)
+    assert any("6 passes" in r for r in reasons)
+
+
+def test_explain_dismiss_and_review_bands():
+    from agent.services.scorer import ScoredCluster, explain_decision
+
+    def _s(sev):
+        return ScoredCluster(cluster_id="c", det_ids=["d"], centroid=(0, 0),
+                             repeat_count=1, representative_det_id="d",
+                             detections=[], severity=sev, classification="x",
+                             signals={"area_norm": 10, "repeat": 20,
+                                      "bus_route_w": 0.0, "center_lane": 30.0,
+                                      "thresholds": {"auto_file": 70,
+                                                     "review": 40}})
+
+    assert explain_decision(_s(20))[0] == "low_severity"
+    assert explain_decision(_s(69))[0] == "human review required"
+    assert explain_decision(_s(40))[0] == "human review required"
+    assert explain_decision(_s(70))[0] == "severity 70 >= 70"
+    # Arterial + critical never auto-files, even at 95.
+    forced = explain_decision(_s(95), arterial=True)
+    assert forced[0] == "human review required"
+    assert any("arterial" in r for r in forced)
+    # Same severity off-arterial files.
+    assert explain_decision(_s(95))[0] == "severity 95 >= 70"
