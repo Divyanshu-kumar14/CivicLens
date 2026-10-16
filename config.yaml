@@ -28,6 +28,12 @@ bench:
 
 detection:
   model: "yolov8n"
+  # Road-damage checkpoint (path or hub id). Wins over `model` when set;
+  # missing file fails fast at startup. Until a pothole-trained checkpoint
+  # lands here (docs/TRAINING.md), YOLO ships COCO weights whose classes
+  # never match `classes` — YOLO yields zero hits and classical fallback
+  # carries detection. Do not quote pothole accuracy for COCO weights.
+  weights: ""
   conf_threshold: 0.25
   nms_iou: 0.5
   min_box_px: 24
