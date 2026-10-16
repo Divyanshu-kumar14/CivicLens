@@ -126,10 +126,14 @@ dedup: { geo_eps_m: 15, cos_thresh: 0.82, min_samples: 2 }
 severity: { w_area: 0.50, w_repeat: 0.25, w_route: 0.15, w_lane: 0.10,
   auto_file_threshold: 70, review_threshold: 40 }
 privacy: { blur_faces: true, blur_plates: true, raw_retain_days: 14 }
-detection: { model: "yolov8n", conf_threshold: 0.25, nms_iou: 0.5,
+detection: { model: "yolov8n", weights: "", conf_threshold: 0.25, nms_iou: 0.5,
   min_box_px: 24, classes: [pothole, crack] }
 embedding: { dim: 128, method: "orb" }
 ```
+
+Set `detection.weights` to a road-damage checkpoint path to replace the
+shipped COCO weights (see `docs/TRAINING.md`); empty means hub `model` plus
+classical fallback.
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
@@ -196,11 +200,13 @@ Reproduce locally with `python eval/eval_dedup.py`, `python eval/eval_severity.p
 |---|---|---|---|
 | Dedup compression | 8.89x (80 sightings into 9 clusters) | Above 5x | Pass |
 | Dedup precision / recall | 1.00 / 0.88 | Above 0.90 / 0.80 | Pass |
+| Duplicate rate / false tickets per route | 0.11 (1 extra) / 0.0 | As low as possible | Informational |
 | Severity rank agreement | Spearman rho 1.00 | At or above 0.70 | Pass |
-| Classical fallback P/R | 0.29 / 0.50 | N/A, fallback only | Informational |
+| Classical fallback P/R (pothole) | 0.29 / 0.50 | N/A, fallback only | Informational |
+| Classical P/R (crack) | No labeled samples | Needs crack boxes | Open |
 | Fused YOLO plus classical | Needs pothole-trained weights | Above 0.70 P/R | Open |
 
-Dedup, severity, and classical numbers above were re-run on 2026-10-11 on this machine and match the committed eval scripts. Throughput and bundle figures (ARM Ampere 356 ms per frame, ~139 KB gzip) are reported in `docs/report.md` and `docs/PERF.md`; rerun `make bench` and `vite build` before quoting them for your hardware. `make test` is green here: 46 passed in `agent/`, 27 passed plus 2 skipped in `vision/`.
+Dedup, severity, and classical numbers above were re-run on 2026-10-11 on this machine and match the committed eval scripts. Throughput and bundle figures (ARM Ampere 356 ms per frame, ~139 KB gzip) are reported in `docs/report.md` and `docs/PERF.md`; rerun `make bench` and `vite build` before quoting them for your hardware. `make test` is green here: 62 passed in `agent/`, 33 passed plus 2 skipped in `vision/`.
 
 What is real versus simulated: detection fusion, blur, ORB dedup, scoring gates, traces, override, CSV export, and the local AWS stack all run. YOLO ships COCO weights until pothole weights (RDD2020 or equivalent) are trained. Night, rain glare, speed-breaker, tar-patch, and GPS-drift splits are documented in `eval/failure_cases/README.md`.
 
@@ -218,7 +224,21 @@ Production uses real S3 (SSE-S3, 14-day raw lifecycle), DynamoDB on-demand with 
 
 ## Privacy and responsible use
 
-Faces and plates blur before storage; raw video expires after 14 days; detections expire after 90 days; storage uses SSE-S3; webhooks sign with HMAC-SHA256; crop URLs are 15-minute presigned; CORS is allowlisted; every ticket ships as verify-on-site advisory with no auto-dispatch.
+Faces and plates blur before storage (Haar cascades plus a plate-shape
+fallback; the demo worker applies the same `PrivacyBlur` to crops — when
+cascades are absent on a host the blur finds no regions and logs a warning,
+so treat worker log output as the per-host verification, not the claim
+here); raw video expires after 14 days; detections expire after 90 days;
+storage uses SSE-S3; webhooks sign with HMAC-SHA256; crop URLs are 15-minute
+presigned; CORS is allowlisted; every ticket ships as verify-on-site advisory
+with no auto-dispatch.
+
+Retention is enforced by production AWS controls (`infra/scripts/setup-aws.sh`:
+raw-bucket 14-day lifecycle, detection-table 90-day TTL), **not** by the local
+LocalStack bootstrap (`infra/scripts/init-localstack.sh` sets neither) —
+do not cite local runs as retention proof. Sightings with missing or
+out-of-range GPS are dropped before clustering (logged) instead of merging
+into a null-island ticket.
 
 ## Known issues
 
@@ -246,6 +266,7 @@ Python follows flake8 (max line 100) with type hints; web uses eslint plus Prett
 | Doc | Description |
 |---|---|
 | `docs/report.md` | Living technical report with measured numbers |
+| `docs/TRAINING.md` | Training a road-damage checkpoint: data, command, validation |
 | `docs/PERF.md` | Performance ledger of kept and dropped optimizations |
 | `docs/arch_diagram.mmd` | Architecture diagram source |
 | `eval/failure_cases/README.md` | Documented failure modes |
