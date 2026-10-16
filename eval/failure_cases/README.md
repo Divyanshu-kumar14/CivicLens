@@ -38,3 +38,16 @@ footage (human filming step, Task 1.6.1).
 - Fix: track-level smoothing before clustering (interpolate_gps already
   exists — apply to sightings), or second-pass merge of nearby same-shift
   tickets. Repro: `python eval/eval_dedup.py`.
+
+## 6. Missing/invalid GPS fixes — MEASURED (unit tests, 2026-10-16)
+- What: fleet dropouts produce sightings with no lat/lon, NaN (interpolated
+  past an empty track), or out-of-range fixes. Previously a `KeyError` crash
+  mid-clustering (lost job) or — had they defaulted to 0,0 — one null-island
+  ticket merging unrelated holes.
+- System response: `DeduplicatorService` drops invalid sightings up front
+  and logs the count (`dropping N sighting(s) with invalid GPS`); valid
+  repeats still chain into one cluster. Drifted chains (8m steps over 24m)
+  merge; nearby distinct holes (8m apart, dissimilar texture) stay split.
+- Repro: `python3 -m pytest agent/tests/test_cluster.py -q`.
+- Still open: smoothing/interpolating across short dropouts instead of
+  dropping (needs per-sighting accuracy estimates the GPS track lacks).

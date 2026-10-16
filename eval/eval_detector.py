@@ -37,7 +37,25 @@ def _gt_box(txt_path: str) -> tuple:
     with open(txt_path) as fh:
         cls, cx, cy, w, h = fh.read().split()
     w_px, h_px = float(w) * W, float(h) * H
-    return (float(cx) * W - w_px / 2, float(cy) * H - h_px / 2, w_px, h_px)
+    return int(cls), (float(cx) * W - w_px / 2, float(cy) * H - h_px / 2, w_px, h_px)
+
+
+def _condition(hole_id: str, labels: dict) -> str:
+    """Capture condition for a hole when the labels carry it.
+
+    Demo labels have no condition field yet — every hole reports the single
+    `day-clear (assumed)` split and the summary names the footage still
+    needed (night/rain/blur) instead of inventing splits.
+    """
+    for h in labels["holes"]:
+        if h["hole_id"] == hole_id:
+            return h.get("condition", "day-clear (assumed)")
+    return "day-clear (assumed)"
+
+
+# Class ids follow the dataset's data.yaml when present; the demo-route
+# labels only ship potholes, so crack rows report "no samples" honestly.
+CLASS_NAMES = {0: "pothole", 1: "crack"}
 
 
 def main() -> None:
@@ -45,6 +63,9 @@ def main() -> None:
     labels = json.load(open(f"{demo}/labels.json"))
     mid_frame = {h["hole_id"]: (h["frames"][0] + h["frames"][-1]) // 2 for h in labels["holes"]}
     tp = fp = fn = 0
+    # Per-class and per-condition tallies (same TP/FP/FN rule, split views).
+    per_class: dict[str, list[int]] = {}
+    per_cond: dict[str, list[int]] = {}
     with tempfile.TemporaryDirectory() as tmp:
         for txt in sorted(glob.glob(f"{demo}/yolo/*.txt")):
             hid = os.path.splitext(os.path.basename(txt))[0]
@@ -59,19 +80,47 @@ def main() -> None:
                 fn += 1
                 continue
             img = cv2.imread(out)
-            gt = _gt_box(txt)
+            cls_id, gt = _gt_box(txt)
+            cls_name = CLASS_NAMES.get(cls_id, f"class-{cls_id}")
+            cond = _condition(hid, labels)
+            row_c = per_class.setdefault(cls_name, [0, 0, 0])
+            row_k = per_cond.setdefault(cond, [0, 0, 0])
             boxes = [(b["x"], b["y"], b["w"], b["h"]) for b in canny_contours(img)]
             if any(_iou(gt, b) >= IOU_THRESH for b in boxes):
                 tp += 1
-                fp += sum(1 for b in boxes if _iou(gt, b) < IOU_THRESH)
+                row_c[0] += 1
+                row_k[0] += 1
+                extra = sum(1 for b in boxes if _iou(gt, b) < IOU_THRESH)
+                fp += extra
+                row_c[1] += extra
+                row_k[1] += extra
             else:
                 fn += 1
+                row_c[2] += 1
+                row_k[2] += 1
                 fp += len(boxes)
+                row_c[1] += len(boxes)
+                row_k[1] += len(boxes)
             print(f"  {hid}: frame {frame_no}, {len(boxes)} classical boxes")
     p = tp / (tp + fp) if tp + fp else 0.0
     r = tp / (tp + fn) if tp + fn else 0.0
     print(f"\nclassical path on {len(mid_frame)} synthetic key frames: "
           f"TP={tp} FP={fp} FN={fn} -> P={p:.2f} R={r:.2f}")
+    for name in sorted(set(list(per_class) + ["pothole", "crack"])):
+        ctp, cfp, cfn = per_class.get(name, [0, 0, 0])
+        if ctp + cfp + cfn == 0:
+            print(f"  class {name}: no labeled samples — unevaluated "
+                  f"(needs RDD2020 or fleet footage with {name} boxes)")
+            continue
+        cp = ctp / (ctp + cfp) if ctp + cfp else 0.0
+        cr = ctp / (ctp + cfn) if ctp + cfn else 0.0
+        print(f"  class {name}: TP={ctp} FP={cfp} FN={cfn} -> P={cp:.2f} R={cr:.2f}")
+    for cond, (ctp, cfp, cfn) in sorted(per_cond.items()):
+        cp = ctp / (ctp + cfp) if ctp + cfp else 0.0
+        cr = ctp / (ctp + cfn) if ctp + cfn else 0.0
+        print(f"  condition {cond}: TP={ctp} FP={cfp} FN={cfn} -> P={cp:.2f} R={cr:.2f}")
+    print("condition splits beyond day-clear need labeled night/rain/blur "
+          "footage (docs/TRAINING.md) — this run proves the harness, not the model.")
     print("PRD targets (P>=0.75 R>=0.65, day/night/rain splits) need YOLOv8n + "
           "RDD2020 — this run proves the harness, not the model.")
 
