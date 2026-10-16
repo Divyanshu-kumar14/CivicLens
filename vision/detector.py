@@ -26,6 +26,59 @@ CLASSICAL_FALLBACK_CONF = 0.4
 BORDERLINE_BAND = 0.15
 ROI_EXPAND = 1.5
 
+# Shipped weights are COCO-pretrained (no pothole/crack classes). A
+# road-damage-trained checkpoint is configured via detection.weights —
+# see docs/TRAINING.md. COCO names never overlap the configured classes,
+# so YOLO contributes nothing until then and the classical path carries
+# detection (documented, not claimed otherwise).
+COCO_NOTE = (
+    "shipped YOLO weights are COCO-pretrained (no pothole/crack classes); "
+    "set detection.weights to a road-damage checkpoint (docs/TRAINING.md)"
+)
+
+
+def resolve_model_source(det_cfg: dict) -> str:
+    """Resolve which weights YOLO should load.
+
+    Precedence: explicit `weights` (road-damage checkpoint path or hub id)
+    > `model` when it already looks like a file/hub path (contains a slash
+    or ends with .pt) > `<model>.pt` hub shorthand (legacy `yolov8n` style).
+    Pure helper — no ultralytics import, safe to unit-test anywhere.
+    """
+    weights = (det_cfg.get("weights") or "").strip() if isinstance(
+        det_cfg.get("weights"), str) else det_cfg.get("weights")
+    if weights:
+        return weights
+    model = det_cfg.get("model", "yolov8n")
+    if model.endswith(".pt") or "/" in model or "\\" in model:
+        return model
+    return model + ".pt"
+
+
+def check_weights_available(source: str) -> None:
+    """Fail fast on an explicitly configured but missing local weights file.
+
+    Hub shorthands (e.g. `yolov8n.pt`) are left to ultralytics to fetch;
+    only an explicit `weights` path that names a non-existent local file
+    raises — with the remediation, not a bare traceback. Pure helper.
+    """
+    import os
+
+    looks_local = source.endswith((".pt", ".onnx", ".engine")) and (
+        "/" in source or "\\" in source or os.path.isabs(source)
+        or source.startswith((".", "~")))
+    if looks_local and not os.path.exists(os.path.expanduser(source)):
+        raise FileNotFoundError(
+            f"road-damage weights not found: {source} — "
+            "train a checkpoint (docs/TRAINING.md) or fix detection.weights; "
+            "until then detection runs classical-only"
+        )
+
+
+def passes_class_filter(cls_name: str, classes: list[str]) -> bool:
+    """True when a YOLO class name survives the configured class allowlist."""
+    return cls_name in classes
+
 
 @dataclass
 class Detection:
@@ -76,7 +129,21 @@ def filter_min_box(dets: list[Detection], min_px: int) -> list[Detection]:
 
 class PotholeDetector:
     def __init__(self, config: dict):
-        """Load YOLO weights + thresholds from the `detection` config section."""
+        """Load YOLO weights + thresholds from the `detection` config section.
+
+        `detection.weights` (road-damage checkpoint) wins over `detection.model`;
+        a missing explicit weights file raises FileNotFoundError before the
+        ultralytics import so hosts without the CV stack still get the
+        actionable error. COCO-pretrained weights have no pothole/crack
+        classes, so detect() legitimately returns [] until retrained — the
+        classical fallback in detect_with_fusion covers that path.
+        """
+        import logging
+
+        det_cfg = config["detection"]
+        source = resolve_model_source(det_cfg)
+        check_weights_available(source)
+        self.weights_source = source
         try:
             from ultralytics import YOLO
         except ImportError as exc:
@@ -84,12 +151,18 @@ class PotholeDetector:
                 "ultralytics is required for PotholeDetector. "
                 "Install vision/requirements.txt"
             ) from exc
-        det_cfg = config["detection"]
-        self.model = YOLO(det_cfg.get("model", "yolov8n") + ".pt")
+        self.model = YOLO(source)
         self.conf_threshold = det_cfg.get("conf_threshold", 0.25)
         self.nms_iou = det_cfg.get("nms_iou", 0.5)
         self.min_box_px = det_cfg.get("min_box_px", 24)
         self.classes: list[str] = det_cfg.get("classes", ["pothole", "crack"])
+        names = getattr(self.model, "names", {}) or {}
+        model_classes = set(names.values()) if isinstance(names, dict) else set(names)
+        if model_classes and not (set(self.classes) & model_classes):
+            logging.getLogger("civiclens.detector").warning(
+                "YOLO classes %s do not overlap configured %s — %s; "
+                "YOLO hits will filter to zero and classical fallback carries "
+                "detection", sorted(model_classes), self.classes, COCO_NOTE)
 
     def detect(self, frame: Frame) -> list[Detection]:
         """YOLO inference -> conf/min-box/class filter -> NMS -> Detections."""
@@ -100,7 +173,7 @@ class PotholeDetector:
         dets: list[Detection] = []
         for box in results.boxes:
             cls_name = names[int(box.cls[0])]
-            if cls_name not in self.classes:
+            if not passes_class_filter(cls_name, self.classes):
                 continue
             x1, y1, x2, y2 = (int(v) for v in box.xyxy[0].tolist())
             w, h = x2 - x1, y2 - y1

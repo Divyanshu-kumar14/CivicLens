@@ -5,7 +5,16 @@ Model tests skip cleanly when ultralytics/weights/network are unavailable.
 """
 import pytest
 
-from vision.detector import Detection, PotholeDetector, filter_min_box, iou, nms
+from vision.detector import (
+    Detection,
+    PotholeDetector,
+    check_weights_available,
+    filter_min_box,
+    iou,
+    nms,
+    passes_class_filter,
+    resolve_model_source,
+)
 
 try:
     import ultralytics as _ul  # noqa: F401
@@ -95,3 +104,34 @@ def test_detect_returns_detections_on_sample():
     img = cv2.imread(samples[0])
     dets = det.detect(Frame(image=img, frame_idx=0, timestamp_sec=0.0))
     assert len(dets) >= 1
+
+
+def test_resolve_model_source_prefers_explicit_weights():
+    assert resolve_model_source({"model": "yolov8n", "weights": "runs/rdd/yolov8n-rdd.pt"}) == \
+        "runs/rdd/yolov8n-rdd.pt"
+
+
+def test_resolve_model_source_legacy_shorthand():
+    assert resolve_model_source({"model": "yolov8n"}) == "yolov8n.pt"
+
+
+def test_resolve_model_source_passthrough_paths():
+    assert resolve_model_source({"model": "runs/rdd/best.pt"}) == "runs/rdd/best.pt"
+    assert resolve_model_source({"model": "yolov8n.pt"}) == "yolov8n.pt"
+
+
+def test_missing_explicit_weights_raises_with_remediation(tmp_path):
+    missing = str(tmp_path / "nope" / "best.pt")
+    with pytest.raises(FileNotFoundError, match="detection.weights"):
+        check_weights_available(missing)
+
+
+def test_hub_shorthand_never_checked():
+    check_weights_available("yolov8n.pt")  # must not raise (ultralytics fetches)
+
+
+def test_class_filter_allows_configured_only():
+    assert passes_class_filter("pothole", ["pothole", "crack"])
+    assert passes_class_filter("crack", ["pothole", "crack"])
+    assert not passes_class_filter("person", ["pothole", "crack"])  # COCO: filtered
+    assert not passes_class_filter("car", ["pothole", "crack"])
