@@ -9,7 +9,9 @@ Honest limitations (also noted in the advancement file):
 - No visual embeddings without torch: every detection shares a constant
   embedding, so dedup merges on GPS proximity alone (15m eps). Co-located
   distinct holes merge; that is the documented trade for fitting in RAM.
-- No privacy blur on this path.
+- Privacy blur runs on crops via Haar cascades when available
+  (vision/blur.py); when cascades are missing the regions list is empty and
+  crops store unblurred — check worker logs for the cascade warning.
 - GPS file missing -> ward-center fallback with per-detection spread.
 
 Run on the box with the agent image (carries opencv-headless):
@@ -58,6 +60,19 @@ class DemoWorker(BatchWorker):
     """BatchWorker with a classical-only process_job (see module docstring)."""
 
     def process_job(self, job: dict) -> dict:
+        """Idempotent wrapper: completed jobs return cached counts; failures
+        are marked failed before propagating (same contract as BatchWorker)."""
+        job_id = job["job_id"]
+        cached = self._already_completed(job_id)
+        if cached is not None:
+            return cached
+        try:
+            return self._process_demo_job(job)
+        except Exception as exc:
+            self._mark_failed(job_id, exc)
+            raise
+
+    def _process_demo_job(self, job: dict) -> dict:
         """processing -> download -> classical detect -> store -> agent loop."""
         import cv2
         import numpy as np
@@ -121,6 +136,7 @@ class DemoWorker(BatchWorker):
         os.makedirs(crops_dir, exist_ok=True)
         annotated_path = os.path.join(tmp, "annotated.mp4")
         writer = None
+        blur = self._build_blur()
 
         detections, idx, kept = [], 0, 0
         try:
@@ -149,7 +165,12 @@ class DemoWorker(BatchWorker):
                     x1, y1 = min(w, int(x + bw * (1 + pad))), min(h, int(y + bh * (1 + pad)))
                     det_id = f"d_{uuid.uuid4().hex[:10]}"
                     crop_path = os.path.join(crops_dir, f"{det_id}.jpg")
-                    cv2.imwrite(crop_path, frame[y0:y1, x0:x1])
+                    raw_crop = frame[y0:y1, x0:x1]
+                    # Privacy: blur faces/plates before the crop hits storage.
+                    # process_crop is a copy-out no-op when no regions match,
+                    # so evidence is untouched in the common case.
+                    crop_img = blur.process_crop(raw_crop) if blur is not None else raw_crop
+                    cv2.imwrite(crop_path, crop_img)
                     lat, lon = self._locate(gps_points, ts, kept)
                     conf = _conf_for_area(b["area"])
                     detections.append(SimpleNamespace(
@@ -175,6 +196,21 @@ class DemoWorker(BatchWorker):
                 writer.release()
         log.info("classical detect: %d detections", len(detections))
         return detections, (annotated_path if writer is not None else None)
+
+    @staticmethod
+    def _build_blur():
+        """PrivacyBlur when the CV stack is present, else None (fail-open).
+
+        Never raises: a missing blur must not lose the whole job — the
+        warning in the logs is the visibility for that gap.
+        """
+        try:
+            from vision.blur import PrivacyBlur
+
+            return PrivacyBlur({})
+        except Exception as exc:
+            log.warning("privacy blur unavailable (%s) — storing unblurred crops", exc)
+            return None
 
     @staticmethod
     def _locate(gps_points, ts: float, n: int) -> tuple[float, float]:

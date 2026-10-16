@@ -112,3 +112,76 @@ def test_bright_paint_ignored_not_detected(tmp_path):
     assert db.statuses["j-paint"][0] == "completed"
     assert counts["raw"] == 0
     assert counts["clusters"] == 0
+
+
+def test_demo_worker_blurs_crops_before_storage(tmp_path, monkeypatch):
+    """Crops pass through PrivacyBlur.process_crop before S3 upload."""
+    import vision.blur as blur_mod
+
+    video, gps = _synthetic_route(tmp_path)
+    seen = []
+
+    class SpyBlur:
+        def __init__(self, config):
+            pass
+
+        def process_crop(self, crop):
+            seen.append(crop.shape)
+            return crop
+
+    monkeypatch.setattr(blur_mod, "PrivacyBlur", SpyBlur)
+    db, s3 = FakeDB(), FakeS3()
+    worker = DemoWorker(config={"severity": {}, "dedup": {}}, db=db, s3=s3)
+    counts = worker.process_job({"job_id": "j-blur", "video_url": video,
+                                 "gps_url": gps})
+    assert counts["raw"] > 0
+    assert len(seen) == counts["raw"]  # every stored crop went through blur
+
+
+def test_demo_worker_blur_unavailable_still_completes(tmp_path, monkeypatch):
+    """Blur init failure degrades to unblurred crops, never a lost job."""
+    import vision.blur as blur_mod
+
+    def _boom(config):
+        raise RuntimeError("no cv2")
+
+    monkeypatch.setattr(blur_mod, "PrivacyBlur", _boom)
+    video, gps = _synthetic_route(tmp_path)
+    db, s3 = FakeDB(), FakeS3()
+    worker = DemoWorker(config={"severity": {}, "dedup": {}}, db=db, s3=s3)
+    counts = worker.process_job({"job_id": "j-noblur", "video_url": video,
+                                 "gps_url": gps})
+    assert db.statuses["j-noblur"][0] == "completed"
+    assert counts["raw"] > 0
+
+
+def test_demo_worker_bad_video_marks_failed(tmp_path):
+    """Unopenable video marks the job failed with the cause, then raises."""
+    import pytest
+
+    db, s3 = FakeDB(), FakeS3()
+    worker = DemoWorker(config={"severity": {}, "dedup": {}}, db=db, s3=s3)
+    with pytest.raises(Exception):
+        worker.process_job({"job_id": "j-bad", "video_url": str(tmp_path / "missing.mp4"),
+                            "gps_url": ""})
+    status, counts = db.statuses["j-bad"]
+    assert status == "failed"
+    assert counts["error"]
+
+
+def test_demo_worker_redelivery_skips_completed(tmp_path):
+    """A restarted worker re-offered a finished job does not re-file tickets."""
+    video, gps = _synthetic_route(tmp_path)
+
+    class DoneDB(FakeDB):
+        def get_job(self, jid):
+            return {"job_id": jid, "status": "completed",
+                    "counts": {"raw": 1, "clusters": 1, "filed": 0,
+                               "review": 1, "dismissed": 0, "annotated_url": ""}}
+
+    db, s3 = DoneDB(), FakeS3()
+    worker = DemoWorker(config={"severity": {}, "dedup": {}}, db=db, s3=s3)
+    counts = worker.process_job({"job_id": "j-redeliver", "video_url": video,
+                                 "gps_url": gps})
+    assert counts["review"] == 1
+    assert s3.crops == {}  # vision never re-ran, nothing re-uploaded
