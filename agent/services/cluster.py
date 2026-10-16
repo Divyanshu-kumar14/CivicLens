@@ -40,6 +40,23 @@ def cosine_sim(a, b) -> float:
         return dot / (na * nb) if na > 0 and nb > 0 else 0.0
 
 
+def is_valid_geo(lat, lon) -> bool:
+    """True when lat/lon are usable coordinates.
+
+    Catches the GPS-dropout shapes seen on fleet hardware: missing keys
+    (None), NaN from interpolating past an empty track, and out-of-range
+    fixes (0,0 null-island, 91+, 181+). Invalid sightings are dropped
+    before clustering — never merged, never crashing the worker.
+    """
+    try:
+        la, lo = float(lat), float(lon)
+    except (TypeError, ValueError):
+        return False
+    if la != la or lo != lo:  # NaN
+        return False
+    return -90.0 <= la <= 90.0 and -180.0 <= lo <= 180.0
+
+
 class DeduplicatorService:
     def __init__(self, config: dict):
         """Load dedup.geo_eps_m / cos_thresh / min_samples."""
@@ -47,7 +64,6 @@ class DeduplicatorService:
         self.geo_eps_m = dedup.get("geo_eps_m", 15)
         self.cos_thresh = dedup.get("cos_thresh", 0.82)
         self.min_samples = dedup.get("min_samples", 2)
-
     def _pair_cost(self, a: dict, b: dict) -> float:
         geo = haversine_distance(a["lat"], a["lon"], b["lat"], b["lon"])
         if geo > self.geo_eps_m:
@@ -85,7 +101,14 @@ class DeduplicatorService:
                                  self.geo_eps_m * (2.0 - sim), 0.0))
 
     def cluster_detections(self, detections: list[dict]) -> list[Cluster]:
-        """DBSCAN over the combined metric. Noise with conf > 0.5 survives solo."""
+        """DBSCAN over the combined metric. Noise with conf > 0.5 survives solo.
+
+        Sightings with missing/invalid GPS are dropped up front (counted in
+        the warning log) instead of crashing distance computation or — worse —
+        collapsing to (0,0) and merging into one null-island ticket.
+        """
+        import logging
+
         from sklearn.cluster import DBSCAN
 
         try:
@@ -93,6 +116,14 @@ class DeduplicatorService:
         except ImportError as exc:
             raise ImportError("numpy is required for clustering") from exc
 
+        valid = [d for d in detections
+                 if is_valid_geo(d.get("lat"), d.get("lon"))]
+        dropped = len(detections) - len(valid)
+        if dropped:
+            logging.getLogger("civiclens.cluster").warning(
+                "dropping %d sighting(s) with invalid GPS (of %d)",
+                dropped, len(detections))
+        detections = valid
         if not detections:
             return []
         if len(detections) == 1:
