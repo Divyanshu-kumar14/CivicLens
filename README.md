@@ -17,7 +17,7 @@ CivicLens turns existing municipal fleets (garbage trucks, sweepers, buses) into
 - Face and plate blurring before any crop is stored, with short raw-video retention.
 - ORB embedding plus DBSCAN dedup that compresses repeat sightings into one ticket per hole.
 - Weighted severity scoring with explicit file, review, and dismiss gates plus an arterial forced-review rule.
-- Every decision trace-logged, with human override that appends to the same trace.
+- Every decision trace-logged with its contributing factors, with human override that appends to the same trace.
 - Map, review queue, video upload, and method views with CSV export for work orders.
 
 ## Quick start
@@ -112,7 +112,7 @@ Severity (`agent/services/scorer.py`):
 severity = 100 * (0.50 * area_norm + 0.25 * repeat_norm + 0.15 * route_w + 0.10 * lane_w)
 ```
 
-At or above 70 files automatically; 40 to 69 queues for review; below 40 dismisses. Severity at or above 85 on an arterial route forces human review instead of auto-filing.
+At or above 70 files automatically; 40 to 69 queues for review; below 40 dismisses. Severity at or above 85 on an arterial route forces human review instead of auto-filing. Each ticket's signals carry the per-factor point contributions and the active thresholds, and its trace lists the factors behind the outcome (top contributor, repeat passes, bus proximity, lane position).
 
 Dedup (`agent/services/cluster.py`): DBSCAN over a combined geo plus visual distance with `geo_eps_m = 15`, `cos_thresh = 0.82`, `min_samples = 2`. Lone weak hits (confidence at or below 0.5) are dismissed.
 
@@ -183,7 +183,7 @@ Base URL `http://localhost:8000`. Full shapes live in `agent/models/` and `/docs
 | `GET` | `/health` | Liveness probe, returns `{"status": "ok", "service": "civiclens-agent"}` |
 | `POST` | `/jobs` | Queue by URL (JSON `video_url`, `gps_url`, `ward`) |
 | `POST` | `/jobs/upload` | Multipart upload (`video`, optional `gps`, `ward`) |
-| `GET` | `/jobs/{job_id}` | Job status plus progress |
+| `GET` | `/jobs/{job_id}` | Job status (`queued`, `processing`, `completed`, `failed`) plus progress; failures carry the cause, and re-delivering a completed job returns cached counts without re-filing tickets |
 | `GET` | `/tickets?status=&sort=` | List; `status` is filed, pending, or dismissed; `sort` is severity or timestamp |
 | `GET` | `/tickets/{ticket_id}` | Full ticket with signals and trace |
 | `POST` | `/tickets/{ticket_id}/override` | Human override (`to`: filed, pending, or dismissed; `reason`) |
