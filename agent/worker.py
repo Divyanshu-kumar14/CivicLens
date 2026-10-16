@@ -90,7 +90,50 @@ class BatchWorker:
                     self.sqs.delete_message(QueueUrl=self.queue_url,
                                             ReceiptHandle=msg["ReceiptHandle"])
 
+    def _already_completed(self, job_id: str) -> dict | None:
+        """Return cached counts when this job already completed.
+
+        SQS redelivers after worker crashes between processing and delete;
+        without this guard a retry would re-store detections and file
+        duplicate tickets. Backends without get_job (older fakes) return
+        None -> normal processing.
+        """
+        getter = getattr(self.db, "get_job", None)
+        if getter is None:
+            return None
+        try:
+            existing = getter(job_id) or {}
+        except Exception:
+            return None
+        if existing.get("status") == "completed":
+            log.info("job %s already completed — skipping re-processing", job_id)
+            return existing.get("counts", {})
+        return None
+
+    def _mark_failed(self, job_id: str, exc: BaseException) -> None:
+        """Persist a failed status so crashes stay visible (never silent)."""
+        try:
+            self.db.update_job_status(job_id, "failed", {"error": str(exc)})
+        except Exception:
+            log.exception("job %s: could not persist failed status", job_id)
+
     def process_job(self, job: dict) -> dict:
+        """processing -> download -> vision -> store -> agent loop -> completed.
+
+        Idempotent on completed jobs; failures are marked failed before the
+        exception propagates (poll_and_process also marks — same value).
+        """
+        job_id = job["job_id"]
+        cached = self._already_completed(job_id)
+        if cached is not None:
+            return cached
+        try:
+            return self._process_job_inner(job)
+        except Exception as exc:
+            self._mark_failed(job_id, exc)
+            raise
+
+    def _process_job_inner(self, job: dict) -> dict:
         """processing -> download -> vision -> store -> agent loop -> completed."""
         from vision.pipeline import VisionPipeline
 

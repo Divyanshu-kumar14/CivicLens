@@ -134,3 +134,59 @@ def test_download_http_uses_bounded_fetch(tmp_path, monkeypatch):
     _worker()._download("http://example.invalid/v.mp4", str(tmp_path / "v.mp4"))
     assert seen["url"] == "http://example.invalid/v.mp4"
     assert seen["timeout"] == 30
+
+
+def test_failed_pipeline_marks_job_failed(tmp_path):
+    """A crashing pipeline leaves a visible failed status, then re-raises."""
+    import pytest
+
+    video = tmp_path / "v.mp4"
+    gps = tmp_path / "g.csv"
+    video.write_bytes(b"fake")
+    gps.write_text("t,lat,lon\n0,12.9,77.5\n")
+
+    class BoomPipeline:
+        def process_video(self, video, gps, job_id):
+            raise RuntimeError("decode exploded")
+
+    db, s3 = FakeDB(), FakeS3()
+    worker = BatchWorker(config={"severity": {}}, db=db, s3=s3,
+                         pipeline=BoomPipeline())
+    with pytest.raises(RuntimeError, match="decode exploded"):
+        worker.process_job({"job_id": "j-boom", "video_url": str(video),
+                            "gps_url": str(gps)})
+    status, counts = db.statuses["j-boom"]
+    assert status == "failed"
+    assert "decode exploded" in counts["error"]
+
+
+def test_completed_job_redelivery_skips_reprocessing(tmp_path):
+    """SQS redelivery of a finished job returns cached counts: no duplicate
+    detections or tickets from worker restarts."""
+    video = tmp_path / "v.mp4"
+    gps = tmp_path / "g.csv"
+    video.write_bytes(b"fake")
+    gps.write_text("t,lat,lon\n0,12.9,77.5\n")
+    crop = tmp_path / "crop.jpg"
+    crop.write_bytes(b"fake-jpg")
+
+    cached = {"raw": 2, "clusters": 1, "filed": 1, "review": 0, "dismissed": 0}
+
+    class DoneDB(FakeDB):
+        def get_job(self, jid):
+            return {"job_id": jid, "status": "completed", "counts": dict(cached)}
+
+    calls = []
+
+    class SpyPipeline(FakePipeline):
+        def process_video(self, video, gps, job_id):
+            calls.append(job_id)
+            return super().process_video(video, gps, job_id)
+
+    db = DoneDB()
+    worker = BatchWorker(config={"severity": {}}, db=db, s3=FakeS3(),
+                         pipeline=SpyPipeline(str(crop)))
+    assert worker.process_job({"job_id": "j-done", "video_url": str(video),
+                               "gps_url": str(gps)}) == cached
+    assert calls == []  # vision never re-ran
+    assert db.detections == []  # nothing re-stored
