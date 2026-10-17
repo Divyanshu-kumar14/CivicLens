@@ -88,9 +88,13 @@ def get_ticket(ticket_id: str, db: DynamoClient = Depends(get_db)) -> dict:
 
 
 @router.post("/{ticket_id}/override")
+authorization: str = Header(default=""),
 def override_ticket(
     ticket_id: str, payload: OverrideRequest, db: DynamoClient = Depends(get_db)
 ) -> dict:
+expected = os.getenv('ADMIN_SECRET', os.getenv('WEBHOOK_SECRET'))
+if authorization.replace('Bearer ', '') != expected:
+    raise HTTPException(status_code=401, detail='unauthorized')
     ticket = db.get_ticket(ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="ticket not found")
