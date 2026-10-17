@@ -73,7 +73,7 @@ def remote_size_ok(url: str) -> bool:
             return length is None or int(length) <= MAX_VIDEO_BYTES
     except Exception as exc:  # unknown size — don't block queueing
         log.warning("size check skipped for %s: %s", url, exc)
-        return True
+        return False
 
 
 def send_job_message(job: dict) -> None:

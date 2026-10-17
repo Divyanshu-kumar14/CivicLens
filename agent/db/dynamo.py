@@ -121,12 +121,14 @@ class DynamoClient:
     def update_ticket(self, ticket_id: str, updates: dict):
         """Update specific fields (status, severity, trace append)."""
         updates = to_dynamo(updates)
-        expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates)
+        RESERVED = {'set','remove','delete','add','create','put','update'}
+        def _safe_key(k): k=k.replace('#','').replace(':','').replace(' ','_'); return k if k not in RESERVED else k+'_val'
+        expr = "SET " + ", ".join(f"#{_safe_key(k)} = :{_safe_key(k)}" for k in updates)
         self._table(self.t_tickets).update_item(
             Key={"ticket_id": ticket_id},
             UpdateExpression=expr,
-            ExpressionAttributeNames={f"#{k}": k for k in updates},
-            ExpressionAttributeValues={f":{k}": v for k, v in updates.items()},
+            ExpressionAttributeNames={f"#{_safe_key(k)}": k for k in updates},
+            ExpressionAttributeValues={f":{_safe_key(k)}": v for k, v in updates.items()},
         )
 
     def get_ticket(self, ticket_id: str) -> dict:
