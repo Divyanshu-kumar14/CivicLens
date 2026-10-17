@@ -5,6 +5,7 @@ Plan ref: IMPLEMENTATION_PLAN.md Task 1.4.4.
 from __future__ import annotations
 
 import csv
+from datetime import datetime
 import hashlib
 import hmac
 import io
@@ -54,9 +55,9 @@ def export_csv(
 ):
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(EXPORT_COLUMNS)
+    writer.writerows(EXPORT_COLUMNS)
     for ticket in db.query_tickets(status=status, sort_by="severity"):
-        writer.writerow(_ticket_row(presign_crop(ticket)))
+        writer.writerows(_ticket_row(presign_crop(ticket)))
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),
