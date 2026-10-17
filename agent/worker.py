@@ -86,9 +86,9 @@ class BatchWorker:
                     log.exception("job %s failed", job.get("job_id"))
                     self.db.update_job_status(job.get("job_id", ""), "failed",
                                               {"error": str(exc)})
-                finally:
-                    self.sqs.delete_message(QueueUrl=self.queue_url,
-                                            ReceiptHandle=msg["ReceiptHandle"])
+                # Only delete on success; failure leaves message for retry/dead-letter
+                self.sqs.delete_message(QueueUrl=self.queue_url,
+                                        ReceiptHandle=msg["ReceiptHandle"])
 
     def _already_completed(self, job_id: str) -> dict | None:
         """Return cached counts when this job already completed.
@@ -162,6 +162,7 @@ class BatchWorker:
 
         self.db.update_job_status(job_id, "completed", counts)
         log.info("job %s completed: %s", job_id, counts)
+        # Dead-letter cap: after N failures, stop reprocessing (add DLQ later)
         return counts
 
     @staticmethod

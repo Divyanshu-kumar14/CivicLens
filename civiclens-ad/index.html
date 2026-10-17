@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape-4k" data-fps="60">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=3840, height=2160" />
+    <title>CivicLens — Fleet Dashcams That File Their Own Pothole Tickets</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/ScrollTrigger.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 3840px; height: 2160px; overflow: hidden; background: #050507; }
+      #root { width: 100%; height: 100%; position: relative; overflow: hidden; font-family: 'Inter', sans-serif; }
+      .scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+      .scene.active { opacity: 1; pointer-events: auto; }
+      /* Neon glass */
+      .glass { background: rgba(17, 24, 39, 0.6); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); }
+      .glass-strong { background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 32px; box-shadow: 0 0 60px rgba(56, 189, 248, 0.15); }
+      .neon-text { color: #fff; text-shadow: 0 0 30px rgba(56, 189, 248, 0.6), 0 0 60px rgba(56, 189, 248, 0.3); }
+      .neon-border { box-shadow: 0 0 40px rgba(56, 189, 248, 0.25); }
+      .text-glow-cyan { color: #38bdf8; text-shadow: 0 0 25px rgba(56, 189, 248, 0.7); }
+      .text-glow-amber { color: #fbbf24; text-shadow: 0 0 25px rgba(251, 191, 36, 0.7); }
+      .text-glow-rose { color: #fb7185; text-shadow: 0 0 25px rgba(251, 113, 133, 0.7); }
+      .mono { font-family: 'JetBrains Mono', monospace; }
+      .grid-bg { background-size: 80px 80px; background-image: linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px); }
+      .fade-in { animation: fadeIn 1.5s ease-out forwards; }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      .float-3d { animation: float 6s ease-in-out infinite; }
+      @keyframes float { 0%, 100% { transform: translateY(0) rotateX(0) rotateY(0); } 50% { transform: translateY(-40px) rotateX(5deg) rotateY(3deg); } }
+      .pulse-border { animation: pulse 3s ease-in-out infinite; }
+      @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4); } 50% { box-shadow: 0 0 0 12px rgba(56, 189, 248, 0); } }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="260" data-width="3840" data-height="2160">
+
+      <!-- ========== SCENE 1: HOOK (0-15s) ========== -->
+      <section class="scene" id="scene-hook" data-start="0" data-duration="15" data-track-index="0">
+        <div class="glass-strong w-[1200px] h-[600px] flex flex-col items-center justify-center p-16 relative overflow-hidden">
+          <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1449967376697-697727016227?auto=format&fit=crop&w=2000&q=80')] bg-cover bg-center opacity-20"></div>
+          <div class="relative z-10 text-center">
+            <div class="text-glow-amber text-3xl md:text-5xl tracking-widest mb-8 font-mono">CIVICLENS</div>
+            <h1 class="text-6xl md:text-9xl font-900 text-white mb-8 leading-tight neon-text">Fleet dashcams file<br/>their own pothole tickets.</h1>
+            <p class="text-xl md:text-2xl text-gray-300 max-w-[900px] leading-relaxed">Photo proof. Decision trace. Every work order, tracked.</p>
+            <div class="mt-12 flex gap-8 items-center">
+              <div class="glass px-8 py-4 rounded-full border border-cyan-500/30">
+                <span class="text-cyan-400 font-mono text-lg">8.89x</span> <span class="text-white text-lg ml-2">dedup compression</span>
+              </div>
+              <div class="glass px-8 py-4 rounded-full border border-rose-500/30">
+                <span class="text-rose-400 font-mono text-lg">&lt;1s</span> <span class="text-white text-lg ml-2">suspend on dispute</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== SCENE 2: PROBLEM (15-35s) ========== -->
+      <section class="scene" id="scene-problem" data-start="15" data-duration="20" data-track-index="0">
+        <div class="grid-bg w-full h-full flex flex-col items-center justify-center p-20">
+          <div class="text-glow-rose text-4xl md:text-6xl font-800 mb-12 tracking-tighter">The Problem:</div>
+          <div class="flex gap-20 justify-center items-start">
+            <div class="glass w-[700px] p-12">
+              <div class="text-rose-400 text-2xl font-700 mb-6">Potholes cost cities millions</div>
+              <div class="text-2xl font-900 text-white mb-4">$5B+</div>
+              <div class="text-gray-400 text-lg">annual vehicle damage from potholes across U.S. cities</div>
+            </div>
+            <div class="glass w-[700px] p-12">
+              <div class="text-rose-400 text-2xl font-700 mb-6">Repairs take weeks</div>
+              <div class="text-2xl font-900 text-white mb-4">21 days</div>
+              <div class="text-gray-400 text-lg">average time from report to fix</div>
+            </div>
+            <div class="glass w-[700px] p-12">
+              <div class="text-rose-400 text-2xl font-700 mb-6">Tickets get lost</div>
+              <div class="text-2xl font-900 text-white mb-4">68%</div>
+              <div class="text-gray-400 text-lg">of citizen pothole reports never reach a crew</div>
+            </div>
+          </div>
+          <div class="mt-20 glass-strong w-[1400px] h-[300px] flex items-center justify-between px-20">
+            <div>
+              <div class="text-rose-400 text-xs tracking-widest mb-2 font-mono">BEFORE CIVICLENS</div>
+              <div class="text-5xl font-900 text-white">Reactive</div>
+              <div class="text-gray-400 mt-4">Citizens report → tickets get lost → repairs delayed</div>
+            </div>
+            <div class="w-1 h-[200px] bg-gray-800"></div>
+            <div>
+              <div class="text-cyan-400 text-xs tracking-widest mb-2 font-mono">WITH CIVICLENS</div>
+              <div class="text-5xl font-900 text-white">Proactive</div>
+              <div class="text-gray-400 mt-4">Fleet dashcams detect → auto-file → crew dispatched</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== SCENE 3: SOLUTION (35-60s) ========== -->
+      <section class="scene" id="scene-solution" data-start="35" data-duration="25" data-track-index="0">
+        <div class="glass-strong w-full h-full flex flex-col items-center justify-center p-24 relative overflow-hidden">
+          <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1558390728-5228e918758e?auto=format&fit=crop&w=2000&q=80')] bg-cover bg-center opacity-25"></div>
+          <div class="relative z-10 text-center">
+            <div class="text-glow-cyan text-3xl font-800 mb-10 tracking-widest font-mono">THE SOLUTION</div>
+            <h2 class="text-7xl md:text-10xl font-900 text-white mb-10 leading-tight">Every truck becomes a road inspector.</h2>
+            <p class="text-xl md:text-2xl text-gray-300 max-w-[1000px] mb-14 leading-relaxed">
+              Municipal fleets — garbage trucks, sweepers, buses — already drive every street every day.<br/>
+              Add a dashcam + GPS, and they record the road, detect potholes and cracks, and file tickets automatically.
+            </p>
+            <div class="flex gap-16 justify-center">
+              <div class="glass p-8">
+                <div class="text-cyan-400 text-4xl font-900 mb-2">📹</div>
+                <div class="text-white font-700 text-xl mb-2">Dashcam + GPS intake</div>
+                <div class="text-gray-400 text-lg">Video plus GPS queued through S3 and SQS</div>
+              </div>
+              <div class="glass p-8">
+                <div class="text-amber-400 text-4xl font-900 mb-2">🎯</div>
+                <div class="text-white font-700 text-xl mb-2">YOLOv8n detection</div>
+                <div class="text-gray-400 text-lg">Pothole and crack detection with classical fallback</div>
+              </div>
+              <div class="glass p-8">
+                <div class="text-rose-400 text-4xl font-900 mb-2">🔒</div>
+                <div class="text-white font-700 text-xl mb-2">Privacy-first</div>
+                <div class="text-gray-400 text-lg">Face and plate blurred before storage</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== SCENE 4: HOW IT WORKS (60-105s) ========== -->
+      <section class="scene" id="scene-pipeline" data-start="60" data-duration="45" data-track-index="0">
+        <div class="w-full h-full flex flex-col items-center justify-center p-24">
+          <div class="text-glow-cyan text-3xl font-800 mb-12 tracking-widest font-mono">HOW IT WORKS</div>
+          <div class="w-full h-[1200px] flex items-center justify-center gap-40 relative">
+            <!-- Node 1: S3 Raw -->
+            <div class="glass w-[400px] h-[300px] flex flex-col items-center justify-center p-8 relative z-10">
+              <div class="text-cyan-400 text-5xl mb-6">☁️</div>
+              <div class="text-white font-800 text-3xl mb-4">S3 Raw</div>
+              <div class="text-gray-300 text-lg text-center">Video + GPS intake<br/>uploads survive restarts</div>
+            </div>
+            <!-- Arrow 1 -->
+            <div class="absolute left-[520px] top-[130px] w-[60px] h-[4px] bg-cyan-500 rounded"></div>
+            <!-- Node 2: SQS -->
+            <div class="glass w-[400px] h-[300px] flex flex-col items-center justify-center p-8 relative z-10">
+              <div class="text-amber-400 text-5xl mb-6">📥</div>
+              <div class="text-white font-800 text-3xl mb-4">SQS Jobs</div>
+              <div class="text-gray-300 text-lg text-center">Work queue<br/>survives restarts</div>
+            </div>
+            <!-- Arrow 2 -->
+            <div class="absolute left-[1000px] top-[130px] w-[60px] h-[4px] bg-amber-500 rounded"></div>
+            <!-- Node 3: Worker -->
+            <div class="glass w-[400px] h-[300px] flex flex-col items-center justify-center p-8 relative z-10">
+              <div class="text-rose-400 text-5xl mb-6">⚙️</div>
+              <div class="text-white font-800 text-3xl mb-4">Batch Worker</div>
+              <div class="text-gray-300 text-lg text-center">Decode, detect, blur, embed<br/>YOLOv8n + Canny + ORB</div>
+            </div>
+            <!-- Arrow 3 -->
+            <div class="absolute left-[1480px] top-[130px] w-[60px] h-[4px] bg-rose-500 rounded"></div>
+            <!-- Node 4: DynamoDB -->
+            <div class="glass w-[400px] h-[300px] flex flex-col items-center justify-center p-8 relative z-10">
+              <div class="text-purple-400 text-5xl mb-6">🗄️</div>
+              <div class="text-white font-800 text-3xl mb-4">DynamoDB</div>
+              <div class="text-gray-300 text-lg text-center">Detections + tickets<br/>with traces</div>
+            </div>
+            <!-- Arrow 4 down -->
+            <div class="absolute left-[1660px] top-[430px] w-[4px] h-[60px] bg-purple-500 rounded"></div>
+            <!-- Node 5: UI -->
+            <div class="glass w-[400px] h-[300px] flex flex-col items-center justify-center p-8 relative z-10">
+              <div class="text-green-400 text-5xl mb-6">🗺️</div>
+              <div class="text-white font-800 text-3xl mb-4">React Map UI</div>
+              <div class="text-gray-300 text-lg text-center">Review queue, video upload,<br/>CSV export, webhooks</div>
+            </div>
+          </div>
+          <div class="mt-16 glass-strong w-[1400px] h-[120px] flex items-center justify-between px-16">
+            <div>
+              <div class="text-cyan-400 font-mono text-sm tracking-widest">1. INGEST</div>
+              <div class="text-white font-700 text-2xl">Video + GPS → S3 → SQS</div>
+            </div>
+            <div class="w-1 h-[60px] bg-gray-800"></div>
+            <div>
+              <div class="text-amber-400 font-mono text-sm tracking-widest">2. PROCESS</div>
+              <div class="text-white font-700 text-2xl">Detect → Blur → Embed → Score</div>
+            </div>
+            <div class="w-1 h-[60px] bg-gray-800"></div>
+            <div>
+              <div class="text-green-400 font-mono text-sm tracking-widest">3. ACT</div>
+              <div class="text-white font-700 text-2xl">File → Review → Dispatch</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== SCENE 5: FEATURES (105-155s) ========== -->
+      <section class="scene" id="scene-features" data-start="105" data-duration="50" data-track-index="0">
+        <div class="w-full h-full flex flex-col items-center justify-center p-24">
+          <div class="text-glow-cyan text-3xl font-800 mb-12 tracking-widest font-mono">KEY FEATURES</div>
+          <div class="grid grid-cols-3 gap-24 w-full max-w-[2400px]">
+            <!-- Feature 1: Detection -->
+            <div class="glass-strong p-12 h-[500px] flex flex-col justify-between">
+              <div>
+                <div class="text-rose-400 text-4xl mb-6">🎯</div>
+                <div class="text-white font-900 text-4xl mb-6">YOLOv8n + Canny</div>
+                <div class="text-gray-300 text-xl leading-relaxed">
+                  Confident model hits win; weak frames get a classical Canny fallback with focused ROI re-check.
+                </div>
+              </div>
+              <div class="glass p-6 mt-8">
+                <div class="text-cyan-400 font-mono text-sm mb-2">conf_threshold: 0.25</div>
+                <div class="text-cyan-400 font-mono text-sm mb-2">nms_iou: 0.5</div>
+                <div class="text-cyan-400 font-mono text-sm">min_box_px: 24</div>
+              </div>
+            </div>
+            <!-- Feature 2: Privacy -->
+            <div class="glass-strong p-12 h-[500px] flex flex-col justify-between border-rose-500/20">
+              <div>
+                <div class="text-rose-400 text-4xl mb-6">🔒</div>
+                <div class="text-white font-900 text-4xl mb-6">Face + Plate Blur</div>
+                <div class="text-gray-300 text-xl leading-relaxed">
+                  Faces and license plates are blurred before any crop is stored. Raw video retained only 14 days.
+                </div>
+              </div>
+              <div class="glass p-6 mt-8 border-rose-500/20">
+                <div class="text-rose-400 font-mono text-sm mb-2">blur_faces: true</div>
+                <div class="text-rose-400 font-mono text-sm mb-2">blur_plates: true</div>
+                <div class="text-rose-400 font-mono text-sm">raw_retain_days: 14</div>
+              </div>
+            </div>
+            <!-- Feature 3: Dedup -->
+            <div class="glass-strong p-12 h-[500px] flex flex-col justify-between border-cyan-500/20">
+              <div>
+                <div class="text-cyan-400 text-4xl mb-6">🔄</div>
+                <div class="text-white font-900 text-4xl mb-6">DBSCAN Dedup</div>
+                <div class="text-gray-300 text-xl leading-relaxed">
+                  ORB embeddings cluster repeat sightings of the same pothole into one ticket. 8.89x compression.
+                </div>
+              </div>
+              <div class="glass p-6 mt-8 border-cyan-500/20">
+                <div class="text-cyan-400 font-mono text-sm mb-2">geo_eps_m: 15</div>
+                <div class="text-cyan-400 font-mono text-sm mb-2">cos_thresh: 0.82</div>
+                <div class="text-cyan-400 font-mono text-sm">min_samples: 2</div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-20 glass-strong w-[2000px] h-[200px] flex items-center justify-between px-24">
+            <div>
+              <div class="text-rose-400 font-mono text-sm tracking-widest">SEVERITY SCORING</div>
+              <div class="text-white font-800 text-4xl mb-2">100 × (0.50·area + 0.25·repeat + 0.15·route + 0.10·lane)</div>
+              <div class="text-gray-400 text-lg">≥70 auto-files · 40-69 review · &lt;40 dismisses · ≥85 arterial = forced review</div>
+            </div>
+            <div class="text-glow-amber text-6xl font-900">≥70</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== SCENE 6: TECH STACK (155-195s) ========== -->
+      <section class="scene" id="scene-stack" data-start="155" data-duration="40" data-track-index="0">
+        <div class="w-full h-full flex flex-col items-center justify-center p-24">
+          <div class="text-glow-cyan text-3xl font-800 mb-12 tracking-widest font-mono">TECH STACK</div>
+          <div class="grid grid-cols-4 gap-32 w-full max-w-[2800px]">
+            <div class="glass p-10 text-center">
+              <div class="text-cyan-400 text-5xl mb-6">🐍</div>
+              <div class="text-white font-800 text-3xl mb-4">Python 3.11</div>
+              <div class="text-gray-400 text-lg">OpenCV · Ultralytics YOLOv8n · ORB</div>
+            </div>
+            <div class="glass p-10 text-center">
+              <div class="text-green-400 text-5xl mb-6">⚡</div>
+              <div class="text-white font-800 text-3xl mb-4">FastAPI</div>
+              <div class="text-gray-400 text-lg">Pydantic · scikit-learn DBSCAN · boto3</div>
+            </div>
+            <div class="glass p-10 text-center">
+              <div class="text-blue-400 text-5xl mb-6">⚛️</div>
+              <div class="text-white font-800 text-3xl mb-4">React 19</div>
+              <div class="text-gray-400 text-lg">Vite · Tailwind v4 · Leaflet · Axios</div>
+            </div>
+            <div class="glass p-10 text-center">
+              <div class="text-amber-400 text-5xl mb-6">🐳</div>
+              <div class="text-white font-800 text-3xl mb-4">Docker</div>
+              <div class="text-gray-400 text-lg">LocalStack · DynamoDB-local · Nginx · EC2</div>
+            </div>
+          </div>
+          <div class="mt-20 glass-strong w-[2200px] h-[300px] flex items-center justify-between px-24">
+            <div class="flex-1">
+              <div class="text-cyan-400 font-mono text-sm tracking-widest mb-4">LOCAL DEV</div>
+              <div class="text-white font-700 text-2xl mb-2">docker compose up --build</div>
+              <div class="text-gray-300 text-lg">API :8000 · Web :3000 · LocalStack :4566 · DynamoDB :8100</div>
+            </div>
+            <div class="w-1 h-[200px] bg-gray-800"></div>
+            <div class="flex-1">
+              <div class="text-rose-400 font-mono text-sm tracking-widest mb-4">PRODUCTION</div>
+              <div class="text-white font-700 text-2xl mb-2">EC2 Graviton · SSE-S3</div>
+              <div class="text-gray-300 text-lg">SSE-S3 encryption · 14-day raw lifecycle · 90-day detection TTL</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== SCENE 7: IMPACT (195-230s) ========== -->
+      <section class="scene" id="scene-impact" data-start="195" data-duration="35" data-track-index="0">
+        <div class="grid-bg w-full h-full flex flex-col items-center justify-center p-24">
+          <div class="text-glow-amber text-3xl font-800 mb-16 tracking-widest font-mono">MEASURED IMPACT</div>
+          <div class="grid grid-cols-4 gap-24 w-full max-w-[3000px]">
+            <div class="glass-strong p-16 text-center">
+              <div class="text-glow-cyan text-7xl font-900 mb-4">8.89x</div>
+              <div class="text-gray-300 text-xl">dedup compression<br/>80 sightings → 9 clusters</div>
+            </div>
+            <div class="glass-strong p-16 text-center">
+              <div class="text-glow-rose text-7xl font-900 mb-4">1.00</div>
+              <div class="text-gray-300 text-xl">dedup precision<br/>0.88 recall</div>
+            </div>
+            <div class="glass-strong p-16 text-center">
+              <div class="text-glow-amber text-7xl font-900 mb-4">1.00</div>
+              <div class="text-gray-300 text-xl">severity rank<br/>Spearman ρ</div>
+            </div>
+            <div class="glass-strong p-16 text-center">
+              <div class="text-glow-cyan text-7xl font-900 mb-4">0%</div>
+              <div class="text-gray-300 text-xl">false tickets<br/>per route</div>
+            </div>
+          </div>
+          <div class="mt-24 glass-strong w-[2000px] h-[250px] flex items-center justify-between px-24">
+            <div class="flex-1">
+              <div class="text-amber-400 font-mono text-sm tracking-widest mb-4">WARD 12 DEMO</div>
+              <div class="text-white font-800 text-3xl mb-4">5 seeded tickets</div>
+              <div class="text-gray-300 text-lg">filed · pending · dismissed<br/>with severity, repeat counts, traces</div>
+            </div>
+            <div class="w-1 h-[150px] bg-gray-800"></div>
+            <div class="flex-1">
+              <div class="text-cyan-400 font-mono text-sm tracking-widest mb-4">8 CROPS</div>
+              <div class="text-white font-800 text-3xl mb-4">demo pothole crops</div>
+              <div class="text-gray-300 text-lg">backing the ticket drawer<br/>until real S3 crops exist</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== SCENE 8: CTA (230-260s+) ========== -->
+      <section class="scene" id="scene-cta" data-start="230" data-duration="30" data-track-index="0">
+        <div class="glass-strong w-full h-full flex flex-col items-center justify-center p-24 relative overflow-hidden">
+          <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=2000&q=80')] bg-cover bg-center opacity-30"></div>
+          <div class="relative z-10 text-center">
+            <div class="text-glow-cyan text-4xl font-800 mb-12 tracking-widest font-mono">BUILT FOR CITIES THAT MOVE</div>
+            <h1 class="text-8xl md:text-10xl font-900 text-white mb-12 leading-tight neon-text">CivicLens</h1>
+            <p class="text-xl md:text-2xl text-gray-300 max-w-[1200px] mb-16 leading-relaxed">
+              The truck that knows every pothole should be the one that reports it.<br/>
+              Open source · MIT License · Fleet-first road inspection
+            </p>
+            <div class="flex gap-16 justify-center items-center">
+              <a href="https://github.com/Divyanshu-kumar14/CivicLens" class="glass px-16 py-8 rounded-full border border-cyan-500/30 hover:border-cyan-500 transition-all text-center">
+                <div class="text-cyan-400 font-mono text-3xl font-800 mb-4">github.com</div>
+                <div class="text-white text-3xl font-800">Divyanshu-kumar14/CivicLens</div>
+              </a>
+            </div>
+            <div class="mt-20 glass px-16 py-8 rounded-full border border-gray-600/30">
+              <div class="text-gray-400 font-mono text-xl">MIT License</div>
+              <div class="text-gray-500 font-mono text-lg mt-2">Built with YOLOv8n · OpenCV · FastAPI · React · Docker</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Narration audio -->
+      <audio id="narration" src="assets/voice.wav" preload="auto" data-start="0" data-duration="260" class="clip"></audio>
+
+    </div>
+    <script>
+      // All timelines managed per HyperFrames convention
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["main"] = tl;
+
+      // Scene 1: Hook — fade in title with scale
+      tl.fromTo("#scene-hook", { opacity: 0 }, { opacity: 1, duration: 1.5 }, 0);
+      tl.fromTo("#scene-hook h1", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 1.2, ease: "power3.out" }, 0.5);
+      tl.fromTo("#scene-hook p", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 1.2);
+      tl.fromTo("#scene-hook .flex.gap-8", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 1.8);
+      tl.to("#scene-hook", { opacity: 0, duration: 1 }, 13);
+
+      // Scene 2: Problem — slide up cards
+      tl.fromTo("#scene-problem", { opacity: 0 }, { opacity: 1, duration: 1 }, 15);
+      tl.fromTo("#scene-problem .text-glow-rose", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 15.5);
+      tl.fromTo("#scene-problem .glass:nth-child(1)", { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 16);
+      tl.fromTo("#scene-problem .glass:nth-child(2)", { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 16.5);
+      tl.fromTo("#scene-problem .glass:nth-child(3)", { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 17);
+      tl.fromTo("#scene-problem .glass-strong", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 1.2 }, 18);
+      tl.to("#scene-problem", { opacity: 0, duration: 1 }, 33.5);
+
+      // Scene 3: Solution — scale in
+      tl.fromTo("#scene-solution", { opacity: 0 }, { opacity: 1, duration: 1 }, 35);
+      tl.fromTo("#scene-solution h2", { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 1.2 }, 35.5);
+      tl.fromTo("#scene-solution p", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 36.5);
+      tl.fromTo("#scene-solution .glass.p-8", { y: 50, opacity: 0, scale: 0.9 }, { y: 0, opacity: 1, scale: 1, duration: 1, stagger: 0.3 }, 37.5);
+      tl.to("#scene-solution", { opacity: 0, duration: 1 }, 58.5);
+
+      // Scene 4: Pipeline — sequential node reveal
+      tl.fromTo("#scene-pipeline", { opacity: 0 }, { opacity: 1, duration: 1 }, 60);
+      tl.fromTo("#scene-pipeline .text-glow-cyan", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 60.5);
+      tl.fromTo("#scene-pipeline .glass:nth-child(2)", { x: -100, opacity: 0 }, { x: 0, opacity: 1, duration: 1 }, 61);
+      tl.fromTo("#scene-pipeline .glass:nth-child(3)", { x: -100, opacity: 0 }, { x: 0, opacity: 1, duration: 1 }, 62.5);
+      tl.fromTo("#scene-pipeline .glass:nth-child(4)", { x: -100, opacity: 0 }, { x: 0, opacity: 1, duration: 1 }, 64);
+      tl.fromTo("#scene-pipeline .glass:nth-child(5)", { x: -100, opacity: 0 }, { x: 0, opacity: 1, duration: 1 }, 65.5);
+      tl.fromTo("#scene-pipeline .glass-strong", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 67);
+      tl.to("#scene-pipeline", { opacity: 0, duration: 1 }, 103.5);
+
+      // Scene 5: Features — grid reveal
+      tl.fromTo("#scene-features", { opacity: 0 }, { opacity: 1, duration: 1 }, 105);
+      tl.fromTo("#scene-features .text-glow-cyan", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 105.5);
+      tl.fromTo("#scene-features .glass-strong:nth-child(3)", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 106);
+      tl.fromTo("#scene-features .glass-strong:nth-child(4)", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 107);
+      tl.fromTo("#scene-features .glass-strong:nth-child(5)", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 108);
+      tl.fromTo("#scene-features .glass-strong:last-child", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 1.2 }, 109.5);
+      tl.to("#scene-features", { opacity: 0, duration: 1 }, 153.5);
+
+      // Scene 6: Stack — card flip
+      tl.fromTo("#scene-stack", { opacity: 0 }, { opacity: 1, duration: 1 }, 155);
+      tl.fromTo("#scene-stack .text-glow-cyan", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 155.5);
+      tl.fromTo("#scene-stack .grid .glass", { y: 80, opacity: 0, scale: 0.9 }, { y: 0, opacity: 1, scale: 1, duration: 1, stagger: 0.25 }, 156);
+      tl.fromTo("#scene-stack .glass-strong", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 161);
+      tl.to("#scene-stack", { opacity: 0, duration: 1 }, 193.5);
+
+      // Scene 7: Impact — count up
+      tl.fromTo("#scene-impact", { opacity: 0 }, { opacity: 1, duration: 1 }, 195);
+      tl.fromTo("#scene-impact .text-glow-amber", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 195.5);
+      tl.fromTo("#scene-impact .glass-strong", { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 1, stagger: 0.3 }, 196);
+      tl.fromTo("#scene-impact .glass-strong:last-child", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 198);
+      tl.to("#scene-impact", { opacity: 0, duration: 1 }, 228.5);
+
+      // Scene 8: CTA — final hold
+      tl.fromTo("#scene-cta", { opacity: 0 }, { opacity: 1, duration: 1.5 }, 230);
+      tl.fromTo("#scene-cta h1", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 1.2 }, 231);
+      tl.fromTo("#scene-cta p", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 232);
+      tl.fromTo("#scene-cta a", { y: 30, opacity: 0, scale: 0.9 }, { y: 0, opacity: 1, scale: 1, duration: 1 }, 233);
+      tl.fromTo("#scene-cta .glass:last-child", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 1 }, 234);
+
+      tl.seek(0);
+    </script>
+  </body>
+</html>
