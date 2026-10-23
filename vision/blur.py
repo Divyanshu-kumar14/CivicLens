@@ -24,7 +24,14 @@ def _cascade_search_paths(filename: str) -> list[str]:
     ]
 
 
-def _load_cascade(filename: str) -> cv2.CascadeClassifier:
+def _load_cascade(filename: str) -> cv2.CascadeClassifier | None:
+    # OpenCV 5 ships the Haar cascade API in the contrib build only; the plain
+    # opencv-python wheel has no cv2.CascadeClassifier. Degrade to no regions
+    # (logged) instead of crashing the worker on import.
+    if not hasattr(cv2, "CascadeClassifier"):
+        log.warning("cv2.CascadeClassifier unavailable (need opencv-contrib) — "
+                    "privacy blur will rely on the plate fallback only")
+        return None
     for path in _cascade_search_paths(filename):
         if os.path.exists(path):
             clf = cv2.CascadeClassifier(path)
@@ -46,7 +53,7 @@ class PrivacyBlur:
 
     def detect_faces(self, frame: np.ndarray) -> list[tuple]:
         """detectMultiScale faces -> [(x, y, w, h)]. Empty when disabled/missing."""
-        if not self.blur_faces or self._face_clf.empty():
+        if not self.blur_faces or self._face_clf is None or self._face_clf.empty():
             return []
         gray = frame if frame.ndim == 2 else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         found = self._face_clf.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5,
@@ -59,7 +66,7 @@ class PrivacyBlur:
             return []
         regions: list[tuple] = []
         gray = frame if frame.ndim == 2 else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        if not self._plate_clf.empty():
+        if self._plate_clf is not None and not self._plate_clf.empty():
             found = self._plate_clf.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5,
                                                       minSize=(30, 30))
             regions += [tuple(map(int, r)) for r in found]

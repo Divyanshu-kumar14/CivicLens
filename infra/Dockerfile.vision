@@ -6,10 +6,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY vision/requirements.txt ./requirements.txt
+COPY vision/requirements.lock ./requirements.lock
 # CPU-only torch first: PyPI CUDA wheels are GBs of dead weight on CPU workers
 RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.lock
 
 COPY vision/ ./vision/
 COPY config.yaml ./config.yaml
