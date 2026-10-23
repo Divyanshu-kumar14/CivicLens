@@ -6,10 +6,11 @@ Phase 2 adds webhook re-fire on override-to-filed (Task 2.2.3) — hook noted.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from agent.db.dynamo import DynamoClient
@@ -88,13 +89,15 @@ def get_ticket(ticket_id: str, db: DynamoClient = Depends(get_db)) -> dict:
 
 
 @router.post("/{ticket_id}/override")
-authorization: str = Header(default=""),
 def override_ticket(
-    ticket_id: str, payload: OverrideRequest, db: DynamoClient = Depends(get_db)
+    ticket_id: str,
+    payload: OverrideRequest,
+    authorization: str = Header(default=""),
+    db: DynamoClient = Depends(get_db),
 ) -> dict:
-expected = os.getenv('ADMIN_SECRET', os.getenv('WEBHOOK_SECRET'))
-if authorization.replace('Bearer ', '') != expected:
-    raise HTTPException(status_code=401, detail='unauthorized')
+    expected = os.getenv("ADMIN_SECRET", os.getenv("WEBHOOK_SECRET"))
+    if authorization.replace("Bearer ", "") != expected:
+        raise HTTPException(status_code=401, detail="unauthorized")
     ticket = db.get_ticket(ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="ticket not found")

@@ -1,10 +1,28 @@
 name: CI
 on: [push, pull_request]
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy: matrix: python: ['3.11','3.12']
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
     steps:
-    - uses: actions/checkout@v4
-    - run: make lint
-    - run: make test
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # One pinned install covers both suites: the agent lock carries OpenCV 5,
+      # numpy, scipy, scikit-learn and pytest. Vision's ultralytics/torch tests
+      # skip cleanly when those optional packages are absent.
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r agent/requirements.lock
+
+      - name: Tests
+        run: make test

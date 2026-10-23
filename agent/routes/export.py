@@ -55,9 +55,9 @@ def export_csv(
 ):
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerows(EXPORT_COLUMNS)
+    writer.writerow(EXPORT_COLUMNS)
     for ticket in db.query_tickets(status=status, sort_by="severity"):
-        writer.writerows(_ticket_row(presign_crop(ticket)))
+        writer.writerow(_ticket_row(presign_crop(ticket)))
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),

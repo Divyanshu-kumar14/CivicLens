@@ -95,13 +95,19 @@ def test_health():
     assert c.get("/health").json() == {"status": "ok", "service": "civiclens-agent"}
 
 
-def test_job_lifecycle():
+def test_job_lifecycle(monkeypatch):
+    import agent.routes.jobs as jobs_mod
+    monkeypatch.setattr(jobs_mod, "remote_size_ok", lambda url: True)
     c, _ = _client()
     r = c.post("/jobs", json={"video_url": "http://x/v.mp4", "gps_url": "http://x/g.csv"})
     assert r.status_code == 201
     jid = r.json()["job_id"]
     assert c.get(f"/jobs/{jid}").json()["status"] == "queued"
     assert c.get("/jobs/missing").status_code == 404
+    # Fail-closed size check: an unverifiable URL is rejected, not queued.
+    monkeypatch.setattr(jobs_mod, "remote_size_ok", lambda url: False)
+    assert c.post("/jobs", json={"video_url": "http://x/v.mp4",
+                                 "gps_url": "http://x/g.csv"}).status_code == 413
 
 
 def test_ticket_list_sort_and_filter():
@@ -112,14 +118,23 @@ def test_ticket_list_sort_and_filter():
     assert c.get("/tickets", params={"sort": "bogus"}).status_code == 422
 
 
-def test_override_flow_and_guards():
+def test_override_flow_and_guards(monkeypatch):
+    monkeypatch.setenv("ADMIN_SECRET", "test-secret")
     c, fake = _client()
-    r = c.post("/tickets/t1/override", json={"to": "filed", "reason": "confirmed"})
+    auth = {"Authorization": "Bearer test-secret"}
+    # Auth guard: missing or wrong token must not mutate a ticket.
+    assert c.post("/tickets/t1/override", json={"to": "filed"}).status_code == 401
+    assert c.post("/tickets/t1/override", json={"to": "filed"},
+                  headers={"Authorization": "Bearer wrong"}).status_code == 401
+    r = c.post("/tickets/t1/override", json={"to": "filed", "reason": "confirmed"},
+               headers=auth)
     assert r.json()["status"] == "filed"
     assert fake.tickets["t1"]["trace"][0]["actor"] == "human"
-    assert c.post("/tickets/nope/override", json={"to": "filed"}).status_code == 404
+    assert c.post("/tickets/nope/override", json={"to": "filed"},
+                  headers=auth).status_code == 404
     fake.tickets["t1"]["exported"] = True
-    assert c.post("/tickets/t1/override", json={"to": "dismissed"}).status_code == 409
+    assert c.post("/tickets/t1/override", json={"to": "dismissed"},
+                  headers=auth).status_code == 409
 
 
 def test_export_csv_and_webhook_shape():

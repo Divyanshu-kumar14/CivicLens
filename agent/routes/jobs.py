@@ -65,7 +65,8 @@ def _presign_job_artifact(job: dict) -> dict:
 
 
 def remote_size_ok(url: str) -> bool:
-    """Best-effort Content-Length check. Fail-open (True) when unknown."""
+    """Best-effort Content-Length check. Fail-closed (False) when unknown:
+    an unverifiable size is rejected rather than queued."""
     try:
         req = Request(url, method="HEAD")
         with urlopen(req, timeout=5) as resp:
