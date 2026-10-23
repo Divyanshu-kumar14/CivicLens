@@ -51,6 +51,7 @@ services:
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
       - AWS_REGION=us-east-1
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-changeme}
     depends_on:
       - dynamodb-local
       - localstack
@@ -63,5 +64,8 @@ services:
     container_name: cl-web
     ports:
       - "3000:80"
+    environment:
+      # nginx injects this on the override route only.
+      - ADMIN_SECRET=${WEBHOOK_SECRET:-changeme}
     depends_on:
       - agent-api

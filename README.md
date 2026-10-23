@@ -224,7 +224,7 @@ WEBHOOK_SECRET=$(openssl rand -hex 32) \
 docker compose -f infra/docker-compose.prod.yml up --build -d
 ```
 
-Production uses real S3 (SSE-S3, 14-day raw lifecycle), DynamoDB on-demand with a `status-severity-index` GSI and 90-day detection TTL, SQS, and an EC2 role (`civiclens-ec2-role`) instead of access keys. The web Nginx proxies `/jobs`, `/tickets`, `/export.csv`, `/webhooks`, and `/health` to the agent. A CloudWatch dashboard template ships in `infra/cloudwatch/dashboard.json`.
+Production uses real S3 (SSE-S3, 14-day raw lifecycle), DynamoDB on-demand with a `status-severity-index` GSI and 90-day detection TTL, SQS, and an EC2 role (`civiclens-ec2-role`) instead of access keys. The web Nginx proxies `/jobs`, `/tickets`, `/export.csv`, `/webhooks`, and `/health` to the agent. On the override route it injects `Authorization: Bearer $ADMIN_SECRET` server-side (the prod overlay sets that from `WEBHOOK_SECRET`), so the token is never shipped in the browser bundle. A CloudWatch dashboard template ships in `infra/cloudwatch/dashboard.json`.
 
 ## Privacy and responsible use
 

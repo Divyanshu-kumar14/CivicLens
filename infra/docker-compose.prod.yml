@@ -13,6 +13,10 @@ services:
   web:
     ports: !override
       - "80:80"
+    environment: !override
+      # nginx injects this on the override route only; the agent accepts the
+      # same value via its WEBHOOK_SECRET fallback.
+      - ADMIN_SECRET=${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set for prod}
 
   agent-api:
     environment: !override
