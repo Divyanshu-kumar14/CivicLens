@@ -22,22 +22,33 @@ CivicLens turns existing municipal fleets (garbage trucks, sweepers, buses) into
 
 ## Quick start
 
-Prerequisites: Docker with Compose, Python 3.11 (per `infra/Dockerfile.*`), Node 20 (per `infra/Dockerfile.web`).
+You need Docker with Compose. The seed script and tests use Python 3.11 or 3.12; Node 20 is only needed if you build the web app outside Docker.
 
 ```bash
 # 1. Clone and enter
 git clone https://github.com/Divyanshu-kumar14/CivicLens.git
 cd CivicLens
 
-# 2. Boot the full stack (API :8000, web :3000, LocalStack :4566, DynamoDB :8100)
-docker compose up --build
+# 2. Python environment for the seed script and the tests
+python3.12 -m venv .venv
+. .venv/bin/activate
+pip install -r agent/requirements.lock
 
-# 3. Seed demo data in a second terminal (idempotent, safe to re-run)
+# 3. API :8000, web :3000, LocalStack :4566, DynamoDB :8100, demo worker
+docker compose up --build -d
+
+# 4. Seed the Ward 12 demo; the first run also creates the local tables
+AWS_REGION=us-east-1 \
+AWS_ENDPOINT_URL=http://localhost:4566 \
+DYNAMO_ENDPOINT_URL=http://localhost:8100 \
+AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
 make seed-demo
 
-# 4. Open the map
+# 5. Open the map
 xdg-open http://localhost:3000
 ```
+
+The first build takes a few minutes. If the API is still starting when the seed finishes, give it a moment and reload the page.
 
 Expect the Ward 12 demo: 5 seeded tickets (filed, pending, dismissed) with severity, repeat counts, and traces. When the API returns zero pending tickets the queue shows 3 client-side sample entries so the review flow is never empty; they yield to real data and never touch the API. Eight pothole demo crops in `web/public/demo-crops/` back the ticket drawer until real S3 crops exist.
 
@@ -212,35 +223,77 @@ Reproduce locally with `python eval/eval_dedup.py`, `python eval/eval_severity.p
 
 Dedup, severity, and classical numbers above were re-run on 2026-10-11 on this machine and match the committed eval scripts. Throughput and bundle figures (ARM Ampere 356 ms per frame, ~139 KB gzip) are reported in `docs/report.md` and `docs/PERF.md`; rerun `make bench` and `vite build` before quoting them for your hardware. `make test` is green here: 62 passed in `agent/`, 33 passed plus 2 skipped in `vision/`.
 
-What is real versus simulated: detection fusion, blur, ORB dedup, scoring gates, traces, override, CSV export, and the local AWS stack all run. YOLO ships COCO weights until pothole weights (RDD2020 or equivalent) are trained. Night, rain glare, speed-breaker, tar-patch, and GPS-drift splits are documented in `eval/failure_cases/README.md`.
+What runs where: the pipeline code implements YOLO and classical fusion, ORB embeddings, DBSCAN, the scoring gates, traces, override and CSV export. The live demo runs `agent/demo_worker.py` with the classical detector and GPS-based dedup because the 2 GB instance cannot hold torch. YOLO ships COCO weights until pothole weights are trained. Night, rain glare, speed-breaker, tar-patch and GPS-drift splits are documented in `eval/failure_cases/README.md`.
+
+## Tests
+
+CI installs one pinned set and runs both suites on Python 3.11 and 3.12:
+
+```bash
+python3.12 -m venv .venv
+. .venv/bin/activate
+pip install -r agent/requirements.lock
+make test
+```
+
+`agent/requirements.lock` carries pytest and the OpenCV 5, numpy, scipy, scikit-learn, FastAPI and boto3 packages both suites import. `vision/requirements.lock` adds torch and ultralytics for the YOLO image; the tests do not need them. `make install` uses the looser `requirements.txt` ranges for development.
 
 ## Deployment
 
+The live demo runs on one EC2 instance with an instance role, so the box stores no AWS access keys.
+
+1. Create the resources once:
+
 ```bash
-./infra/scripts/setup-aws.sh
-cp .env.example .env
-CORS_ORIGINS=https://your-web-host \
-WEBHOOK_SECRET=$(openssl rand -hex 32) \
-docker compose -f infra/docker-compose.prod.yml up --build -d
+AWS_REGION=ap-southeast-2 ./infra/scripts/setup-aws.sh
 ```
+
+The script prints `SQS_QUEUE_URL` when it finishes.
+
+2. Configure `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Set `AWS_REGION`, `SQS_QUEUE_URL`, `WEBHOOK_SECRET` (`openssl rand -hex 32`), and `CORS_ORIGINS` to the public web origin.
+
+3. Start the API and web:
+
+```bash
+docker compose -f docker-compose.yml -f infra/docker-compose.prod.yml \
+  up --build --no-deps -d agent-api web
+```
+
+The base file supplies the build contexts. The prod overlay replaces the LocalStack and DynamoDB Local endpoints with real AWS values. `--no-deps` leaves out the local emulators.
+
+4. Start the demo worker:
+
+```bash
+docker build -t civiclens-agent-api -f infra/Dockerfile.agent .
+docker run -d --name cl-worker --restart unless-stopped \
+  --env-file .env civiclens-agent-api python -m agent.demo_worker
+```
+
+The worker runs outside the compose services so it can be restarted without touching the API. It polls the same SQS queue the API writes to. Its image is the same `infra/Dockerfile.agent` the API uses; the command overrides gunicorn.
 
 Production uses real S3 (SSE-S3, 14-day raw lifecycle), DynamoDB on-demand with a `status-severity-index` GSI and 90-day detection TTL, SQS, and an EC2 role (`civiclens-ec2-role`) instead of access keys. The web Nginx proxies `/jobs`, `/tickets`, `/export.csv`, `/webhooks`, and `/health` to the agent. On the override route it injects `Authorization: Bearer $ADMIN_SECRET` server-side (the prod overlay sets that from `WEBHOOK_SECRET`), so the token is never shipped in the browser bundle. A CloudWatch dashboard template ships in `infra/cloudwatch/dashboard.json`.
 
 ## Privacy and responsible use
 
 Faces and plates blur before storage (Haar cascades plus a plate-shape
-fallback; the demo worker applies the same `PrivacyBlur` to crops — when
-cascades are absent on a host the blur finds no regions and logs a warning,
-so treat worker log output as the per-host verification, not the claim
-here); raw video expires after 14 days; detections expire after 90 days;
+fallback). The demo worker applies the same `PrivacyBlur` to each crop. The
+agent image fetches the cascades at build; if a build skips them, the worker
+logs a warning and stores the crop unblurred, so check the worker log after a
+deploy. Raw video expires after 14 days; detections expire after 90 days;
 storage uses SSE-S3; webhooks sign with HMAC-SHA256; crop URLs are 15-minute
 presigned; CORS is allowlisted; every ticket ships as verify-on-site advisory
 with no auto-dispatch.
 
-Retention is enforced by production AWS controls (`infra/scripts/setup-aws.sh`:
-raw-bucket 14-day lifecycle, detection-table 90-day TTL), **not** by the local
-LocalStack bootstrap (`infra/scripts/init-localstack.sh` sets neither) —
-do not cite local runs as retention proof. Sightings with missing or
+Retention is enforced by production AWS controls in `infra/scripts/setup-aws.sh`
+(raw-bucket 14-day lifecycle, detection-table 90-day TTL), not by the local
+LocalStack bootstrap in `infra/scripts/init-localstack.sh`, which sets neither.
+Do not cite local runs as retention proof. Sightings with missing or
 out-of-range GPS are dropped before clustering (logged) instead of merging
 into a null-island ticket.
 

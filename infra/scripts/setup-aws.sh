@@ -52,6 +52,9 @@ aws dynamodb update-time-to-live --table-name cl-detections \
   --time-to-live-specification "Enabled=true,AttributeName=ttl"
 
 # SQS queue
-aws sqs create-queue --queue-name civic-lens-jobs --region "$REGION"
+aws sqs create-queue --queue-name civic-lens-jobs --region "$REGION" >/dev/null
+QUEUE_URL=$(aws sqs get-queue-url --queue-name civic-lens-jobs --region "$REGION" \
+  --query QueueUrl --output text)
 
 echo "AWS resources created in $REGION"
+echo "SQS_QUEUE_URL=$QUEUE_URL"

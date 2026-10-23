@@ -72,6 +72,60 @@ class DynamoClient:
     def _table(self, name: str):
         return self._dynamo.Table(name)
 
+    def ensure_tables(self) -> None:
+        """Create the three dev tables when missing (local DynamoDB only).
+
+        The production tables come from infra/scripts/setup-aws.sh. This keeps
+        a fresh ``docker compose up`` + seed run from needing a manual step.
+        """
+        client = self._dynamo.meta.client
+        existing = set(client.list_tables().get("TableNames", []))
+        specs = {
+            self.t_detections: {
+                "AttributeDefinitions": [
+                    {"AttributeName": "det_id", "AttributeType": "S"},
+                    {"AttributeName": "job_id", "AttributeType": "S"},
+                ],
+                "KeySchema": [{"AttributeName": "det_id", "KeyType": "HASH"}],
+                "GlobalSecondaryIndexes": [
+                    {
+                        "IndexName": "job-index",
+                        "KeySchema": [{"AttributeName": "job_id", "KeyType": "HASH"}],
+                        "Projection": {"ProjectionType": "ALL"},
+                    }
+                ],
+            },
+            self.t_tickets: {
+                "AttributeDefinitions": [
+                    {"AttributeName": "ticket_id", "AttributeType": "S"},
+                    {"AttributeName": "status", "AttributeType": "S"},
+                    {"AttributeName": "severity", "AttributeType": "N"},
+                ],
+                "KeySchema": [{"AttributeName": "ticket_id", "KeyType": "HASH"}],
+                "GlobalSecondaryIndexes": [
+                    {
+                        "IndexName": "status-severity-index",
+                        "KeySchema": [
+                            {"AttributeName": "status", "KeyType": "HASH"},
+                            {"AttributeName": "severity", "KeyType": "RANGE"},
+                        ],
+                        "Projection": {"ProjectionType": "ALL"},
+                    }
+                ],
+            },
+            self.t_jobs: {
+                "AttributeDefinitions": [
+                    {"AttributeName": "job_id", "AttributeType": "S"},
+                ],
+                "KeySchema": [{"AttributeName": "job_id", "KeyType": "HASH"}],
+            },
+        }
+        for name, spec in specs.items():
+            if name in existing:
+                continue
+            client.create_table(TableName=name, BillingMode="PAY_PER_REQUEST", **spec)
+            client.get_waiter("table_exists").wait(TableName=name)
+
     # --- Jobs ---
     def create_job(self, job: dict) -> str:
         """Put item in cl-jobs. Return job_id."""

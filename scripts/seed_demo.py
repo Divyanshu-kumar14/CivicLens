@@ -3,11 +3,19 @@
 
 Writes a demo completed job + a handful of tickets so the map works
 before any video is processed. Targets localstack when DYNAMO_ENDPOINT_URL
-/ AWS_ENDPOINT_URL are set, else real AWS.
+/ AWS_ENDPOINT_URL are set, else real AWS. The first local run also creates
+the DynamoDB tables.
 """
 from __future__ import annotations
 
+import os
+import sys
 import time
+from pathlib import Path
+
+# `make seed-demo` runs this file directly; put the repo root on sys.path so
+# the `agent` package imports without a PYTHONPATH prefix.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 WARD = "ward-12-demo"
 DEMO_TICKETS = [
@@ -33,6 +41,8 @@ def main(api_url: str | None = None) -> None:
     from agent.db.dynamo import DynamoClient
 
     db = DynamoClient()
+    if os.getenv("DYNAMO_ENDPOINT_URL"):
+        db.ensure_tables()
     job_id = "job-demo-seed"
     db.create_job({
         "job_id": job_id, "ward": WARD, "status": "completed",

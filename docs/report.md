@@ -76,8 +76,9 @@ Human override flows back into the agent with full trace.
 
 ## 5. AWS Deployment
 Live since 2026-10-10 (ap-southeast-2): EC2 `t4g.small` (Graviton/ARM) running
-`agent-api` + `web` from `infra/docker-compose.prod.yml` (no local emulators).
-Real backends via `infra/scripts/setup-aws.sh`: S3 `civic-lens-raw` (SSE-S3,
+`agent-api` + `web` from `infra/docker-compose.prod.yml` (no local emulators),
+plus a separate `cl-worker` container running `agent.demo_worker`. Real
+backends via `infra/scripts/setup-aws.sh`: S3 `civic-lens-raw` (SSE-S3,
 14-day lifecycle) + `civic-lens-crops`, DynamoDB `cl-detections` / `cl-tickets`
 (GSI `status-severity-index`) / `cl-jobs` (90-day detection TTL), SQS
 `civic-lens-jobs`. Instance role `civiclens-ec2-role` (S3/Dynamo/SQS/CW managed
@@ -118,7 +119,8 @@ Reproduce: `make bench`. Full COOL comparison needs c7g access (see `cool_append
   (rank perfect; absolute calibration skews low on synthetic data).
 - Detector: classical P=0.29 R=0.50 (fallback only); YOLO P/R needs weights + RDD2020.
 - Full suite: 62 passed in `agent/`, 33 passed + 2 skipped in `vision/`
-  (`make test`, verified 2026-10-23 in the pinned agent image).
+  (`make test`, verified 2026-10-23 in the pinned agent environment,
+  `agent/requirements.lock`).
 
 ## 9. Failure Cases
 See `eval/failure_cases/README.md`: night drop, rain glare, speed breakers, tar
@@ -131,8 +133,16 @@ days; SSE-S3; HMAC webhooks; 15-min presigned URLs; CORS allowlist via
 always available.
 
 ## 11. Reproducibility
-`docker compose up --build` → `make seed-demo` → http://localhost:3000.
-`make bench`, `make test`, `make secrets`. Dependencies are pinned per image:
-`vision/requirements.lock`, `agent/requirements.lock`, and
-`web/package-lock.json`; the Dockerfiles install the lock files, not the
-`requirements.txt` ranges.
+Local: `docker compose up --build -d`, then seed with the LocalStack endpoint
+variables from `.env.example`, then http://localhost:3000. The local worker
+runs `agent.demo_worker` (classical path).
+Tests: `make test` with `agent/requirements.lock` on Python 3.11 or 3.12; CI
+runs both versions on every push.
+Deploy: `infra/scripts/setup-aws.sh`, fill `.env`, then
+`docker compose -f docker-compose.yml -f infra/docker-compose.prod.yml up
+--build --no-deps -d agent-api web`; start `agent.demo_worker` from
+`infra/Dockerfile.agent` in a separate `cl-worker` container.
+Dependencies are pinned per image: `vision/requirements.lock`,
+`agent/requirements.lock`, and `web/package-lock.json`; the Dockerfiles
+install the lock files, not the `requirements.txt` ranges. `make bench` and
+`make secrets` remain the performance and secret-scan entry points.

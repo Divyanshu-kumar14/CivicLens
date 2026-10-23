@@ -19,18 +19,21 @@ services:
     volumes:
       - "./infra/scripts/init-localstack.sh:/etc/localstack/init/ready.d/init.sh"
 
-  # Vision batch worker
+  # Classical demo worker (torch-free). The full YOLO image is Dockerfile.vision.
   vision-worker:
     build:
       context: .
-      dockerfile: infra/Dockerfile.vision
+      dockerfile: infra/Dockerfile.agent
     container_name: cl-vision
+    command: ["python", "-m", "agent.demo_worker"]
+    restart: unless-stopped
     environment:
       - AWS_ENDPOINT_URL=http://localstack:4566
       - DYNAMO_ENDPOINT_URL=http://dynamodb-local:8000
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
       - AWS_REGION=us-east-1
+      - SQS_QUEUE_URL=http://localstack:4566/000000000000/civic-lens-jobs
     depends_on:
       - dynamodb-local
       - localstack
@@ -51,6 +54,7 @@ services:
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
       - AWS_REGION=us-east-1
+      - SQS_QUEUE_URL=http://localstack:4566/000000000000/civic-lens-jobs
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-changeme}
     depends_on:
       - dynamodb-local

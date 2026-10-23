@@ -7,12 +7,17 @@ RUN pip install --no-cache-dir -r requirements.lock
 
 COPY agent/ ./agent/
 COPY config.yaml ./config.yaml
-# Demo worker's classical CV path (agent/demo_worker.py): the two torch-free
+# Demo worker's classical CV path (agent/demo_worker.py): the torch-free
 # vision modules as a real package (cluster.py imports vision.gps). No
-# ultralytics/torch anywhere on this import graph — the image stays lean.
+# ultralytics/torch anywhere on this import graph, so the image stays lean.
 COPY vision/gps.py ./vision/gps.py
 COPY vision/classical.py ./vision/classical.py
+COPY vision/blur.py ./vision/blur.py
 RUN touch ./vision/__init__.py
+
+# Privacy blur needs the Haar XMLs; the opencv wheel ships an empty data dir.
+COPY scripts/fetch_cascades.py ./scripts/fetch_cascades.py
+RUN python scripts/fetch_cascades.py
 
 ENV PYTHONUNBUFFERED=1
 
