@@ -1,10 +1,12 @@
 flowchart LR
-  V[(S3 raw: mp4+gps)] --> Q[SQS jobs]
-  Q --> W[Batch worker: Graviton + COOL\nG-API decode→detect→blur→embed]
-  W --> D[(Dynamo detections)]
+  V[(S3 raw: mp4 + GPS)] --> Q[SQS jobs]
+  Q --> W["Batch worker · EC2 Graviton<br/>OpenCV 5: decode → detect → blur → embed"]
+  W --> D[(DynamoDB detections)]
   W --> C[(S3 crops)]
-  D --> A[Agent: cluster→score→file/queue]
-  A --> T[(Dynamo tickets+traces)]
-  T --> UI[React map+queue]
-  UI -->|CSV/webhook| CITY[City work-order]
-  UI -->|override| A
+  D --> A["Agent API · FastAPI<br/>DBSCAN cluster → severity score → file / queue / dismiss"]
+  A --> T[(DynamoDB tickets + traces)]
+  T --> UI[React + Leaflet map and queue]
+  UI -->|CSV / signed webhook| CITY[City work-order system]
+  UI -->|human override| A
+  CW[CloudWatch metrics] -.-> W
+  CW -.-> A

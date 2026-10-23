@@ -75,6 +75,7 @@ Human override appends to the same trace the agent writes:
 
 ```bash
 curl -X POST http://localhost:8000/tickets/t_hole02/override \
+  -H "Authorization: Bearer $WEBHOOK_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"to": "filed", "reason": "confirmed on site"}'
 ```
@@ -141,7 +142,8 @@ classical fallback.
 | `S3_RAW_BUCKET` / `S3_CROPS_BUCKET` | Yes | `civic-lens-raw` / `civic-lens-crops` | Uploaded video, blurred crops |
 | `DYNAMO_TABLE_DETECTIONS` / `_TICKETS` / `_JOBS` | Yes | `cl-detections` / `cl-tickets` / `cl-jobs` | Table names |
 | `SQS_QUEUE_URL` | For jobs | unset | Work queue; missing means `500 SQS_QUEUE_URL not configured` |
-| `WEBHOOK_SECRET` | For webhooks | `changeme` | HMAC-SHA256 `X-CivicLens-Signature` |
+| `WEBHOOK_SECRET` | For webhooks | `changeme` | HMAC-SHA256 `X-CivicLens-Signature`; also the override bearer token when `ADMIN_SECRET` is unset |
+| `ADMIN_SECRET` | No | falls back to `WEBHOOK_SECRET` | Bearer token required by `POST /tickets/{id}/override` |
 | `CITY_WEBHOOK_URL` | For auto-file notify | unset | Worker delivery target |
 | `CORS_ORIGINS` | No | `http://localhost:3000` | Comma-separated web origins |
 | `AWS_ENDPOINT_URL` / `DYNAMO_ENDPOINT_URL` | Local only | unset | Point at LocalStack / DynamoDB-local |
@@ -174,6 +176,8 @@ config.yaml  Shared dedup/severity/privacy/detection tunables
 
 `specs/` and run state (`.orchestrator/`, `.token-optimizer/`) are local-only and gitignored.
 
+Docker images install pinned locks: `agent/requirements.lock`, `vision/requirements.lock`, and `web/package-lock.json`. `make install` uses the version ranges for local dev; the root `requirements.lock` is an index of the per-image locks (pip cannot parse its section headers).
+
 ## API reference
 
 Base URL `http://localhost:8000`. Full shapes live in `agent/models/` and `/docs`.
@@ -186,7 +190,7 @@ Base URL `http://localhost:8000`. Full shapes live in `agent/models/` and `/docs
 | `GET` | `/jobs/{job_id}` | Job status (`queued`, `processing`, `completed`, `failed`) plus progress; failures carry the cause, and re-delivering a completed job returns cached counts without re-filing tickets |
 | `GET` | `/tickets?status=&sort=` | List; `status` is filed, pending, or dismissed; `sort` is severity or timestamp |
 | `GET` | `/tickets/{ticket_id}` | Full ticket with signals and trace |
-| `POST` | `/tickets/{ticket_id}/override` | Human override (`to`: filed, pending, or dismissed; `reason`) |
+| `POST` | `/tickets/{ticket_id}/override` | Human override (`to`: filed, pending, or dismissed; `reason`); requires `Authorization: Bearer $ADMIN_SECRET` (falls back to `WEBHOOK_SECRET`) |
 | `GET` | `/export.csv?status=filed` | CSV work-order export |
 | `POST` | `/webhooks/test` | Signed webhook delivery check |
 
@@ -270,7 +274,7 @@ Python follows flake8 (max line 100) with type hints; web uses eslint plus Prett
 | `docs/PERF.md` | Performance ledger of kept and dropped optimizations |
 | `docs/arch_diagram.mmd` | Architecture diagram source |
 | `eval/failure_cases/README.md` | Documented failure modes |
-| `docs/cool_appendix.md` | COOL benchmark details |
+| `docs/cool_appendix.md` | COOL benchmark status (planned, not yet run) |
 
 ## License
 
