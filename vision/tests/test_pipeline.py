@@ -1,8 +1,11 @@
 """Tests for vision/pipeline.py — injected fakes, no CV stack needed."""
+from pathlib import Path
 from types import SimpleNamespace
 
 from vision.gps import GPSPoint
 from vision.pipeline import ProcessingResult, VisionPipeline
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class _FakeDetector:
@@ -16,8 +19,11 @@ class _FakeDetector:
 
 
 def _pipe(tmp_path, dets=()):
-    # Pipeline reads config from disk; point it at the repo config.
-    return VisionPipeline(config_path="config.yaml", detector=_FakeDetector(list(dets)))
+    # Pipeline reads config from disk; resolve it from the repo, not the CWD.
+    return VisionPipeline(
+        config_path=str(REPO_ROOT / "config.yaml"),
+        detector=_FakeDetector(list(dets)),
+    )
 
 
 def test_processing_result_defaults():
