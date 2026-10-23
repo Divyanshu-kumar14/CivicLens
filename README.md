@@ -2,9 +2,9 @@
 
 **Fleet dashcams that file their own pothole tickets, with photo proof and a decision trace for every work order.**
 
-OpenCV AI Competition 2026 submission. The live demo runs on a 2 GB ARM instance against a seeded Ward 12.
+OpenCV AI Competition 2026 submission.
 
-[Live demo](http://3.25.238.76) · [API docs](http://3.25.238.76:8000/docs) · [Technical report](docs/report.md) · [Results](docs/report.md#8-evaluation-results)
+[Technical report](docs/report.md) · [Results](docs/report.md#8-evaluation-results) · [Run it locally](#run-it-locally)
 
 [![CI](https://github.com/Divyanshu-kumar14/CivicLens/actions/workflows/ci.yml/badge.svg)](https://github.com/Divyanshu-kumar14/CivicLens/actions/workflows/ci.yml)
 [![OpenCV](https://img.shields.io/badge/OpenCV-5.0-5C3EE8?logo=opencv&logoColor=white)](https://opencv.org/)
@@ -14,7 +14,7 @@ OpenCV AI Competition 2026 submission. The live demo runs on a 2 GB ARM instance
 
 ![CivicLens ticket drawer with a pothole crop, a severity score of 64, and the factors behind the review gate](docs/assets/civic-lens-ticket.png)
 
-The ticket drawer on the local demo dataset: a pothole crop, the severity score, and the factors behind the review gate. The live demo runs the same UI against real AWS services.
+The ticket drawer on the local demo dataset: a pothole crop, the severity score, and the factors behind the review gate.
 
 ## The problem
 
@@ -34,31 +34,23 @@ CivicLens turns an existing municipal fleet into a road inspector. A dashcam rec
 What makes it useful:
 
 - **Use the fleet you have.** No new hardware. The dashcam and GPS unit are already on the truck.
-- **One ticket per hole.** GPS plus ORB embeddings collapse repeat sightings; the live demo uses the GPS-only path that fits the 2 GB box.
+- **One ticket per hole.** GPS plus ORB embeddings collapse repeat sightings; the demo worker uses the GPS-only path that fits the 2 GB target.
 - **Rank the queue.** Weighted severity and the 70/40 gates separate auto-file, review, and dismiss; an arterial ticket at 85 or higher is forced to human review.
 - **Keep the decision auditable.** Every file, queue, or dismiss appends a trace with the contributing factors. A human override uses the same log. There is no LLM in the decision path; the "agent" is a deterministic rules engine.
 - **Blur before storage.** Haar face and plate cascades run on each crop before it reaches S3.
 
 ## See it work
 
-**Live demo:** [http://3.25.238.76](http://3.25.238.76)
-**API docs:** [http://3.25.238.76:8000/docs](http://3.25.238.76:8000/docs)
-**Technical report:** [docs/report.md](docs/report.md)
+The screenshots come from the local demo dataset. Start the stack with [Run it locally](#run-it-locally) and seed the Ward 12 demo; the map, review queue, ticket drawer, override, and CSV export all run locally against LocalStack.
 
-The live box is a single AWS `t4g.small` in `ap-southeast-2` with real S3, SQS, and DynamoDB. It runs the classical worker, not the YOLO image. The demo is seeded with Ward 12 tickets, and the map, review queue, ticket drawer, override, and CSV export all run against that instance.
-
-Try it in a browser:
-
-1. Open the live demo and click a pin or a queue row.
+1. Open `http://localhost:3000` and click a pin or a queue row.
 2. In the ticket drawer, check the crop, the factors behind the score, and the trace.
 3. Approve or dismiss a pending ticket, then export the filed tickets as CSV.
 4. Use Upload to process a short MP4. The worker writes an annotated video and stores the crops.
 
-The public box is for demo data. Do not upload personal or sensitive footage.
-
 ![CivicLens review queue with two pending tickets sorted by severity](docs/assets/civic-lens-queue.png)
 
-The review queue on the local demo dataset, with two pending tickets and the severity bars used for triage. The live demo runs the same UI.
+The review queue on the local demo dataset, with two pending tickets and the severity bars used for triage.
 
 ## How it works
 
@@ -69,7 +61,7 @@ The review queue on the local demo dataset, with two pending tickets and the sev
 3. **Decide.** `DeduplicatorService` clusters sightings, `SeverityScorer` computes the weighted score, and `TicketFiler` files at 70 or above, queues at 40 to 69, and dismisses below 40. An arterial ticket at 85 or above is forced to review instead of auto-filing.
 4. **Surface and act.** The React app reads tickets through the API. A reviewer can override a ticket, and the override appends to the same trace. Filed tickets export to CSV or go out through a signed webhook.
 
-The live demo runs `agent.demo_worker.py`, which performs the same intake, detection, dedup, scoring, filing, and annotated video steps in one container with the classical detector. The full vision image splits detection into `vision/pipeline.py` and adds YOLO and ORB. The [report](docs/report.md#5-aws-deployment) records the live path.
+The demo worker runs `agent.demo_worker.py`, which performs the same intake, detection, dedup, scoring, filing, and annotated video steps in one container with the classical detector. The full vision image splits detection into `vision/pipeline.py` and adds YOLO and ORB. The [report](docs/report.md#5-aws-deployment) records the deployment path.
 
 ### OpenCV in the pipeline
 
@@ -84,7 +76,7 @@ OpenCV does the CPU work on the fleet box. The pinned version is 5.0.0.93 (contr
 
 ### Dedup and severity
 
-`agent/services/cluster.py` clusters by combined GPS and visual distance: `geo_eps_m = 15`, `cos_thresh = 0.82`, `min_samples = 2`. A lone weak hit at confidence 0.5 or below is dismissed. The live demo uses GPS-only dedup because the 2 GB box does not load the ORB/vision image; the full agent path runs the combined ORB+GPS dedup.
+`agent/services/cluster.py` clusters by combined GPS and visual distance: `geo_eps_m = 15`, `cos_thresh = 0.82`, `min_samples = 2`. A lone weak hit at confidence 0.5 or below is dismissed. The demo worker uses GPS-only dedup because the 2 GB target does not load the ORB/vision image; the full agent path runs the combined ORB+GPS dedup.
 
 `agent/services/scorer.py` uses:
 
@@ -117,9 +109,9 @@ flowchart LR
     UI -->|"human override"| A
 ```
 
-The backend runs in two images: the vision worker (`infra/Dockerfile.vision`) and the API (`infra/Dockerfile.agent`). The React app is built by `infra/Dockerfile.web` and served by Nginx. The live box runs a smaller demo worker from the agent image because 2 GB cannot hold torch. The rendered diagram is [`docs/arch_diagram.png`](docs/arch_diagram.png); the editable source is [`docs/arch_diagram.mmd`](docs/arch_diagram.mmd).
+The backend runs in two images: the vision worker (`infra/Dockerfile.vision`) and the API (`infra/Dockerfile.agent`). The React app is built by `infra/Dockerfile.web` and served by Nginx. The demo deployment runs a smaller worker from the agent image because 2 GB cannot hold torch. The rendered diagram is [`docs/arch_diagram.png`](docs/arch_diagram.png); the editable source is [`docs/arch_diagram.mmd`](docs/arch_diagram.mmd).
 
-For a live upload, the browser sends the file to Nginx, which proxies `/jobs/upload` to FastAPI. FastAPI writes S3 and SQS, `agent.demo_worker` pulls the message and writes detections and tickets, and the browser polls the job and reads the ticket list. The web Nginx also injects the override bearer token server-side, so the token never ships in the browser bundle.
+For an upload, the browser sends the file to Nginx, which proxies `/jobs/upload` to FastAPI. FastAPI writes S3 and SQS, `agent.demo_worker` pulls the message and writes detections and tickets, and the browser polls the job and reads the ticket list. The web Nginx also injects the override bearer token server-side, so the token never ships in the browser bundle.
 
 ## Tech stack
 
@@ -130,9 +122,9 @@ For a live upload, the browser sends the file to Nginx, which proxies `/jobs/upl
 | Web | React 19, Vite 6, Tailwind 4, Leaflet 1.9, Axios 1.7, Node 20 build | map, queue, upload, ticket drawer |
 | Data | S3, DynamoDB, SQS | raw video and crops, tickets and traces, jobs |
 | Local parity | Docker Compose, LocalStack 3.0, DynamoDB Local | run the AWS flow without an account |
-| Deploy and CI | EC2 `t4g.small` (Graviton), Nginx, CloudWatch, GitHub Actions | live demo, metrics, tests on Python 3.11 and 3.12 |
+| Deploy and CI | EC2 `t4g.small` (Graviton), Nginx, CloudWatch, GitHub Actions | deployment, metrics, tests on Python 3.11 and 3.12 |
 
-The live path is CPU-only. The YOLO image is separate and needs a pothole-trained checkpoint before its detector numbers mean anything.
+The demo path is CPU-only. The YOLO image is separate and needs a pothole-trained checkpoint before its detector numbers mean anything.
 
 ## Run it locally
 
@@ -207,7 +199,7 @@ Key knobs: raise `dedup.geo_eps_m` for fewer, larger clusters (safe range 10 to 
 
 ## API
 
-The local base is `http://localhost:8000`; the live base is `http://3.25.238.76:8000`. Full schemas are at `/docs`.
+The base URL is `http://localhost:8000` for the local stack. Full schemas are at `/docs`.
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
@@ -257,9 +249,9 @@ The evaluation is split by what it measures because one "accuracy" number would 
 | Classical P/R (crack) | No labeled samples | Needs crack boxes | Open |
 | Fused YOLO plus classical | Needs pothole-trained weights | Above 0.70 P/R | Open |
 
-The dedup and severity checks are strong on the synthetic set; the detector is not. The live demo runs the classical fallback, so its job output is noisier than the fused system the code describes. We report the gap instead of hiding it. Severity rank is perfect, but absolute calibration skews low on the synthetic data.
+The dedup and severity checks are strong on the synthetic set; the detector is not. The demo worker runs the classical fallback, so its job output is noisier than the fused system the code describes. We report the gap instead of hiding it. Severity rank is perfect, but absolute calibration skews low on the synthetic data.
 
-A live smoke test on 2026-10-23 completed a full upload, worker, and cluster run over the public URL in 4 s: 21 raw detections became 4 clusters, and the worker wrote an annotated video to S3 ([report](docs/report.md#5-aws-deployment)). The full suite is green: 62 passed in `agent/`, 33 passed + 2 skipped in `vision/`. The web initial bundle is 139.29 KB gzip; YOLOv8n measured 356 ms per frame on a 2 vCPU ARM host. Both are reference numbers; rerun `make bench` and `vite build` on your hardware before quoting them.
+The full suite is green: 62 passed in `agent/`, 33 passed + 2 skipped in `vision/`. The web initial bundle is 139.29 KB gzip; YOLOv8n measured 356 ms per frame on a 2 vCPU ARM host. Both are reference numbers; rerun `make bench` and `vite build` on your hardware before quoting them.
 
 Reproduce:
 
@@ -273,14 +265,14 @@ make test
 
 ## What is real vs simulated
 
-| Capability | Live demo (`3.25.238.76`) | Full repository |
+| Capability | Local demo worker | Full repository |
 | --- | --- | --- |
-| Intake, S3, SQS, jobs, map, queue, override, CSV | Real AWS services with seeded Ward 12 data and test uploads | Same |
+| Intake, S3, SQS, jobs, map, queue, override, CSV | LocalStack services with seeded Ward 12 data and test uploads | Same code; point it at real AWS services |
 | Detection | Classical Canny contour path in `agent.demo_worker` | YOLOv8n plus classical fusion in `vision/pipeline.py` |
 | Pothole-trained YOLO | Not loaded; COCO weights have no pothole class | Code path ready; needs a checkpoint ([training](docs/TRAINING.md)) |
 | Dedup | GPS distance only | ORB plus GPS DBSCAN in `agent/services/cluster.py` |
 | Blur | Haar face/plate on each crop; cascades fetched at build | Same |
-| Webhook delivery | Endpoint implemented and tested; live target is not configured | Same code; set `CITY_WEBHOOK_URL` |
+| Webhook delivery | Endpoint implemented and tested; external target is not configured | Same code; set `CITY_WEBHOOK_URL` |
 | Data | Seeded demo and test runs | No city pilot; synthetic route and engineer-ranked set |
 | Decision layer | Deterministic 70/40 rules plus trace | Same; no LLM |
 
@@ -338,7 +330,9 @@ The agent lock carries pytest and the OpenCV 5, NumPy, SciPy, scikit-learn, Fast
 
 ## Deployment
 
-The live demo is one EC2 `t4g.small` in `ap-southeast-2`, running `agent-api` and `web` from `infra/docker-compose.prod.yml`, plus a separate `cl-worker` container running `agent.demo_worker`. It uses real S3, DynamoDB, SQS, and an instance role, so the box stores no AWS access keys.
+No public deployment is running. The steps below deploy the stack to your own AWS account.
+
+A demo deployment fits on one EC2 `t4g.small` in `ap-southeast-2`, running `agent-api` and `web` from `infra/docker-compose.prod.yml`, plus a separate `cl-worker` container running `agent.demo_worker`. It uses real S3, DynamoDB, SQS, and an instance role, so the box stores no AWS access keys.
 
 ### 1. Create the resources once
 
@@ -375,22 +369,9 @@ docker run -d --name cl-worker --restart unless-stopped \
 
 The worker runs outside the compose services so it can be restarted without touching the API. It polls the same SQS queue the API writes to. Its image is the same `infra/Dockerfile.agent` the API uses; the command overrides gunicorn.
 
-The web Nginx proxies `/jobs`, `/tickets`, `/export.csv`, `/webhooks`, and `/health` to the agent and injects the override bearer token server-side. A CloudWatch dashboard template ships in `infra/cloudwatch/dashboard.json`. The full YOLO/ORB worker uses `infra/Dockerfile.vision` and needs more than the 2 GB demo box; the live deployment uses the demo worker by design.
+The web Nginx proxies `/jobs`, `/tickets`, `/export.csv`, `/webhooks`, and `/health` to the agent and injects the override bearer token server-side. A CloudWatch dashboard template ships in `infra/cloudwatch/dashboard.json`. The full YOLO/ORB worker uses `infra/Dockerfile.vision` and needs more than the 2 GB demo target; the demo deployment uses the demo worker by design.
 
 Open pre-pilot item: the instance role currently uses managed S3, DynamoDB, and SQS policies. A ward-scoped IAM policy is the next step before a real fleet deployment.
-
-## Submission checklist
-
-| Requirement | Where |
-| --- | --- |
-| Technical report | [`docs/report.md`](docs/report.md) |
-| Public, judge-accessible repository | [github.com/Divyanshu-kumar14/CivicLens](https://github.com/Divyanshu-kumar14/CivicLens) |
-| Pinned dependencies | `agent/requirements.lock`, `vision/requirements.lock`, `web/package-lock.json` |
-| Build, deploy, and test instructions | [Run it locally](#run-it-locally), [Tests and CI](#tests-and-ci), [Deployment](#deployment) |
-| Architecture diagram | [Architecture](#architecture), [docs/arch_diagram.png](docs/arch_diagram.png), [docs/arch_diagram.mmd](docs/arch_diagram.mmd) |
-| Working endpoint | [http://3.25.238.76](http://3.25.238.76) and [API docs](http://3.25.238.76:8000/docs) |
-| Evaluation evidence | [Results](#results) and [`eval/`](eval/) |
-| Failure cases | [`eval/failure_cases/README.md`](eval/failure_cases/README.md) |
 
 ## Further reading
 
